@@ -59,6 +59,8 @@ CommTiled::CommTiled(LAMMPS * /*lmp*/, Comm *oldcomm) : Comm(*oldcomm)
 {
   style = 1;
   layout = oldcomm->layout;
+  maxexchange_atom = oldcomm->maxexchange_atom;
+  maxexchange_fix = oldcomm->maxexchange_fix;
   Comm::copy_arrays(oldcomm);
   init_buffers();
 }

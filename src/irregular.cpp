@@ -107,7 +107,12 @@ void Irregular::migrate_atoms(int sortflag, int preassign, int *procassign)
   // clear old ghosts so map_set() at end will operate only on local atoms
   // exchange() doesn't need to clear ghosts b/c borders()
   //   is called right after and it clears ghosts and calls map_set()
-
+  int max_exchange_atom=comm->max_exchange_atom;
+  int max_exchange_atom=comm->max_exchange_fix;
+  int max_exchange=max_exchange_atom+max_exchange_fix;
+  if(max_exchange){
+  memory->grow(buf_send,maxsend+BUFEXTRA+max_exchange,"comm:buf_send");
+  }
   if (map_style) atom->map_clear();
   atom->nghost = 0;
   atom->avec->clear_bonus();

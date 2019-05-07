@@ -97,6 +97,8 @@ CommBrick::CommBrick(LAMMPS * /*lmp*/, Comm *oldcomm) : Comm(*oldcomm)
 
   style = 0;
   layout = oldcomm->layout;
+  maxexchange_atom = oldcomm->maxexchange_atom;
+  maxexchange_fix = oldcomm->maxexchange_fix;
   Comm::copy_arrays(oldcomm);
   init_buffers();
 }
