@@ -40,7 +40,9 @@ class CommCAC : public CommTiled {
 
   virtual void coord2proc_setup();
   virtual int coord2proc(double *, int &, int &, int &);
-
+  
+  virtual int read_lines_from_CAC(FILE *, int, int, int, char *);
+  virtual int read_lines_from_CAC_universe(FILE *, int, int, int, char *);
   bigint memory_usage();
 
  private:
@@ -208,6 +210,7 @@ class CommCAC : public CommTiled {
   void grow_swap_send(int, int, int);  // grow swap arrays for send and recv
   void grow_swap_recv(int, int, int);
   void deallocate_swap(int);           // deallocate swap arrays
+
 
 };
 
