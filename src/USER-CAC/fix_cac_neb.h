@@ -13,7 +13,7 @@
 
 #ifdef FIX_CLASS
 
-FixStyle(CAC/neb,FixNEBCAC)
+FixStyle(cac/neb,FixNEBCAC)
 
 #else
 

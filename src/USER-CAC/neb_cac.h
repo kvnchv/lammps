@@ -13,7 +13,7 @@
 
 #ifdef COMMAND_CLASS
 
-CommandStyle(CAC/neb,NEBCAC)
+CommandStyle(cac/neb,NEBCAC)
 
 #else
 
@@ -59,6 +59,9 @@ class NEBCAC : protected Pointers {
   void readfile(char *, int);
   void open(char *);
   void print_status();
+  //readline methods for CAC format
+  int read_lines_from_CAC(FILE *, int, int, int, char *); 
+  int read_lines_from_CAC_universe(FILE *, int, int, int, char *); 
 };
 
 }

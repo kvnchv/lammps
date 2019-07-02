@@ -452,9 +452,9 @@ void NEBCAC::readfile(char *file, int flag)
     nchunk = MIN(nlines-nread,CHUNK);
 
     if (flag == 0)
-      eofflag = comm->read_lines_from_CAC_universe(fp,nchunk,MAXLINE,MAXELEMENT,buffer);
+      eofflag = read_lines_from_CAC_universe(fp,nchunk,MAXLINE,MAXELEMENT,buffer);
     else
-      eofflag = comm->read_lines_from_CAC(fp,nchunk,MAXLINE,MAXELEMENT,buffer);
+      eofflag = read_lines_from_CAC(fp,nchunk,MAXLINE,MAXELEMENT,buffer);
     if (eofflag) error->all(FLERR,"Unexpected end of neb file");
 
     buf = buffer;
@@ -751,3 +751,122 @@ void NEBCAC::print_status()
     }
   }
 }
+
+
+/* ----------------------------------------------------------------------
+    readline methods for CAC/neb
+------------------------------------------------------------------------- */
+int NEBCAC::read_lines_from_CAC(FILE *fp, int nlines, int maxline, 
+                                  int maxelement,   char *buf)
+{
+  int m, nlineinner, nodecount, npoly, tmp;
+  char *element_type = (char*)memory->smalloc(sizeof(char) * 20, "read_lines_CAC: element type string");
+  char **element_names = atom->element_names;
+  int element_type_count = atom->element_type_count;
+  int *nodes_per_element_list = atom->nodes_per_element_list;
+
+
+  if (me == 0) {
+    m = 0;
+    for (int i = 0; i < nlines; i++) {
+      if (!fgets(&buf[m], maxline, fp)) {
+        m = 0;
+        break;
+      }
+
+      sscanf(&buf[m], "%d %s %d", &tmp, element_type, &npoly);
+      m += strlen(&buf[m]);
+      element_type = strtok(element_type, " \t\n\r\f");
+
+      int type_found = 0;
+      for(int string_check=1; string_check < element_type_count; string_check++){
+        if (strcmp(element_type, element_names[string_check]) == 0){
+          type_found=1; 
+          nodecount = nodes_per_element_list[string_check];
+        }
+      }
+      if (strcmp(element_type, "Atom") == 0) {
+        type_found=1;
+        nodecount = 1;
+        npoly = 1;
+      }
+      if(!type_found) {
+        error->one(FLERR, "element type not yet defined, add definition in process_args function of atom_vec_CAC.cpp style");
+      }
+      if(npoly<1)
+        error->one(FLERR, "poly_count less than one in data file");
+      // read lines one at a time into buffer and count words
+      // count to ninteger and ndouble until have enough lines
+      //comm->size_forward = 9 * nodecount*npoly + 8 + npoly;
+
+      for (nlineinner = 0; nlineinner < nodecount*npoly; nlineinner++) {
+        if (!fgets(&buf[m], maxline, fp)){
+          m = 0;
+          break;
+        }
+        m += strlen(&buf[m]);
+        if (nlineinner + 1 >= maxelement) {
+          error->one(FLERR,
+            "Too many lines in one element in data file - increase maxpoly or max nodes per element for atom style CAC");
+        }
+      }
+    }
+  }
+
+  MPI_Bcast(&m, 1, MPI_INT, 0, world);
+  if (m == 0) return 1;
+  MPI_Bcast(buf, m, MPI_CHAR, 0, world);
+  return 0;
+}
+
+int NEBCAC::read_lines_from_CAC_universe(FILE *fp, int nlines, int maxline, 
+                                           int maxelement, char *buf)
+{
+  int m, nlineinner, nodecount, npoly, tmp;
+  char* element_type = (char*)malloc(sizeof(char)*20);
+
+  int me_universe = universe->me;
+  MPI_Comm uworld = universe->uworld;
+
+  if (me_universe == 0) {
+    m = 0;
+    for (int i = 0; i < nlines; i++) {
+      if (!fgets(&buf[m], maxline, fp)) {
+        m = 0;
+        break;
+      }
+      sscanf(&buf[m], "%d %s %d", &tmp, element_type, &npoly);
+      m += strlen(&buf[m]);
+      element_type = strtok(element_type, " \t\n\r\f");
+      if (strcmp(element_type, "Eight_Node") == 0) nodecount = 8;
+      else if (strcmp(element_type, "Atom") == 0) {
+        nodecount = 1;
+        npoly = 1;
+      }
+      else {
+        error->one(FLERR, "Unexpected element type in data file");
+      }
+      // read lines one at a time into buffer and count words
+      // count to ninteger and ndouble until have enough lines
+      //comm->size_forward = 9 * nodecount*npoly + 8 + npoly;
+
+      for (nlineinner = 0; nlineinner < nodecount*npoly; nlineinner++) {
+        if (!fgets(&buf[m], maxline, fp)){
+          m = 0;
+          break;
+        }
+        m += strlen(&buf[m]);
+        if (nlineinner + 1 > maxelement) {
+          error->one(FLERR,
+            "Too many lines in one element in data file - increase MAXELEMENT in read_data.cpp");
+        }
+      }
+    }
+  }
+  
+  MPI_Bcast(&m, 1, MPI_INT, 0, uworld);
+  if (m == 0) return 1;
+  MPI_Bcast(buf, m, MPI_CHAR, 0, uworld);
+  return 0;
+}
+

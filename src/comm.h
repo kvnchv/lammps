@@ -80,9 +80,6 @@ class Comm : protected Pointers {
   virtual void exchange() = 0;                   // move atoms to new procs
   virtual void borders() = 0;                    // setup list of atoms to comm
   
-  //readline methods for CAC format
-  virtual int read_lines_from_CAC(FILE *, int, int, int, char *) {return 0;}; 
-  virtual int read_lines_from_CAC_universe(FILE *, int, int, int, char *) {return 0;}; 
 
   // forward/reverse comm from a Pair, Fix, Compute, Dump
 
