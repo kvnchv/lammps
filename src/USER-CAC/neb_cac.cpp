@@ -185,8 +185,8 @@ void NEBCAC::run()
 
   int ineb;
   for (ineb = 0; ineb < modify->nfix; ineb++)
-    if (strcmp(modify->fix[ineb]->style,"CAC/neb") == 0) break;
-  if (ineb == modify->nfix) error->all(FLERR,"CAC-NEB requires use of fix CAC/neb");
+    if (strcmp(modify->fix[ineb]->style,"cac/neb") == 0) break;
+  if (ineb == modify->nfix) error->all(FLERR,"cac/neb requires use of fix CAC/neb");
 
   fneb = (FixNEBCAC *) modify->fix[ineb];
   if (verbose) numall =7;
