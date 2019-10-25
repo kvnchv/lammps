@@ -79,7 +79,6 @@ class CommCAC : public CommTiled {
   double **eboxes;              // element bounding boxes
   double **foreign_eboxes;      //eboxes of other tasks communicated due to element overlap in my box
   int *ebox_ref;                 //local element index for this ebox ranging from 1:nlocal+nghost
-  int neboxes;                  //number of element bounding boxes in me
   int local_neboxes;            //number of element bounding boxes in me that don't bound ghosts
   int maxebox;                  //maximum size of ebox array
   int maxforeign_ebox;
@@ -87,7 +86,6 @@ class CommCAC : public CommTiled {
   int *foreign_eprocs;          //set of ghost eboxes in me declared by local element index 1:nghost+number of eboxes sent in overlap-comm step
   int **foreign_image;          //set of ghost eboxes in me declared by local element index 1:nghost+number of eboxes sent in overlap-comm step
   int *foreign_swaps;          //set of ghost eboxes in me declared by local element index 1:nghost+number of eboxes sent in overlap-comm step
-  int nebox_considered;          //number of local and ghost eboxes that have already performed their role in previous swaps
   int ebox_limit;               //total number of eboxes nlocal+nghost+nforeign
   int ebox_limit_recheck;       //total number of eboxes nlocal+nforeign
   int elimit;                   //element limit 
@@ -97,7 +95,6 @@ class CommCAC : public CommTiled {
   int **maxsent;
   int maxall;
   int *overlap_repeat;           //stores flags for each proc to determine if overlap array has repeats in O(P)
-  int *work1,*work2;                // work vectors
   int foreign_swap;             //stores swap index in which a foreign ebox was sent
   double element_overlap_range[6]; //upper bound on range than an element can overlap into another task's subbox
   double aug_box[6];             //subbox of me expanded by element overlap of local elements

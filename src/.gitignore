@@ -162,6 +162,10 @@
 /comm_cac.h
 /compute_cac_nodal_temp.cpp
 /compute_cac_nodal_temp.h
+/compute_cac_ke.cpp
+/compute_cac_ke.h
+/compute_cac_ke_atom.cpp
+/compute_cac_ke_atom.h
 /compute_cac_quad_count.cpp
 /compute_cac_quad_count.h
 /dump_cac_initial_nodes.cpp
@@ -174,6 +178,8 @@
 /dump_cac_nodal_velocities.h
 /dump_cac_nodal_forces.cpp
 /dump_cac_nodal_forces.h
+/dump_cac_nodal_virial.cpp
+/dump_cac_nodal_virial.h
 /dump_cac_xyz.cpp
 /dump_cac_xyz.h
 /fix_cac_addforce.cpp
@@ -234,6 +240,10 @@
 /pair_spin.h
 /pair_spin_dmi.cpp
 /pair_spin_dmi.h
+/pair_spin_dipole_cut.cpp
+/pair_spin_dipole_cut.h
+/pair_spin_dipole_long.cpp
+/pair_spin_dipole_long.h
 /pair_spin_exchange.cpp
 /pair_spin_exchange.h
 /pair_spin_magelec.cpp
@@ -495,6 +505,10 @@
 /ewald.h
 /ewald_cg.cpp
 /ewald_cg.h
+/ewald_dipole.cpp
+/ewald_dipole.h
+/ewald_dipole_spin.cpp
+/ewald_dipole_spin.h
 /ewald_disp.cpp
 /ewald_disp.h
 /ewald_n.cpp
@@ -1094,6 +1108,10 @@
 /pppm.h
 /pppm_cg.cpp
 /pppm_cg.h
+/pppm_dipole.cpp
+/pppm_dipole.h
+/pppm_dipole_spin.cpp
+/pppm_dipole_spin.h
 /pppm_disp.cpp
 /pppm_disp.h
 /pppm_disp_tip4p.cpp

@@ -173,11 +173,12 @@ void FixTempRescale_CAC::end_of_step()
     double efactor = 0.5 * force->boltz * temperature->dof;
 
     double ****nodal_velocities = atom->nodal_velocities;
-	int nodes_per_element;
-	int *nodes_count_list = atom->nodes_per_element_list;	
-	int *element_type = atom->element_type;
-	int *poly_count = atom->poly_count;
-	int **node_types = atom->node_types;
+    double **v = atom->v;
+	  int nodes_per_element;
+	  int *nodes_count_list = atom->nodes_per_element_list;	
+	  int *element_type = atom->element_type;
+	  int *poly_count = atom->poly_count;
+	  int **node_types = atom->node_types;
     int *mask = atom->mask;
     int nlocal = atom->nlocal;
 
@@ -187,30 +188,38 @@ void FixTempRescale_CAC::end_of_step()
       for (int i = 0; i < nlocal; i++) {
         if (mask[i] & groupbit) {
         nodes_per_element = nodes_count_list[element_type[i]];
-			for (int j = 0; j < nodes_per_element; j++) {
-				for (int l = 0; l < poly_count[i]; l++) {
+		    for (int l = 0; l < poly_count[i]; l++) {
+			    for (int j = 0; j < nodes_per_element; j++) {
 					//temperature->remove_bias(i,v[i]);
-					nodal_velocities[i][j][l][0] *= factor;
-					nodal_velocities[i][j][l][1] *= factor;
-					nodal_velocities[i][j][l][2] *= factor;
+					nodal_velocities[i][l][j][0] *= factor;
+					nodal_velocities[i][l][j][1] *= factor;
+					nodal_velocities[i][l][j][2] *= factor;
 					// temperature->restore_bias(i,v[i]);
-				}
-			}
+				  }
+			  }
+        
+			  v[i][0] = v[i][0] / nodes_per_element / poly_count[i];
+			  v[i][1] = v[i][1] / nodes_per_element / poly_count[i];
+			  v[i][2] = v[i][2] / nodes_per_element / poly_count[i];
         }
       }
     } else {
       for (int i = 0; i < nlocal; i++) {
         if (mask[i] & groupbit) {
         nodes_per_element = nodes_count_list[element_type[i]];  
-			for (int j = 0; j < nodes_per_element; j++) {
-				for (int l = 0; l < poly_count[i]; l++) {
+			  for (int l = 0; l < poly_count[i]; l++) {
+			    for (int j = 0; j < nodes_per_element; j++) {
 					//temperature->remove_bias(i,v[i]);
-					nodal_velocities[i][j][l][0] *= factor;
-					nodal_velocities[i][j][l][1] *= factor;
-					nodal_velocities[i][j][l][2] *= factor;
+					nodal_velocities[i][l][j][0] *= factor;
+					nodal_velocities[i][l][j][1] *= factor;
+					nodal_velocities[i][l][j][2] *= factor;
 					// temperature->restore_bias(i,v[i]);
 				}
 			}
+      
+			  v[i][0] = v[i][0] / nodes_per_element / poly_count[i];
+			  v[i][1] = v[i][1] / nodes_per_element / poly_count[i];
+			  v[i][2] = v[i][2] / nodes_per_element / poly_count[i];
         }
       }
     }

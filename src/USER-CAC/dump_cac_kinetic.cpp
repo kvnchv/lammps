@@ -18,6 +18,7 @@
 #include "error.h"
 #include "memory.h"
 #include "update.h"
+#include "force.h"
 
 using namespace LAMMPS_NS;
 
@@ -146,12 +147,18 @@ int DumpCAC_Kinetic::count()
 
   //compute number of nodes in total system
   int local_node_count=0;
-   total_node_count=0;
+  total_node_count=0;
+  int local_element_count=0;
+  total_element_count=0;
     
-    for (int i=0; i<atom->nlocal; i++){
-       local_node_count+=nodes_per_element_list[element_type[i]];
+  for (int i=0; i<atom->nlocal; i++){
+    if (mask[i] & groupbit){
+    local_node_count+=nodes_per_element_list[element_type[i]];
+    local_element_count++;
     }
-    MPI_Allreduce(&local_node_count,&total_node_count,1,MPI_INT,MPI_SUM,world);
+  }
+  MPI_Allreduce(&local_node_count,&total_node_count,1,MPI_INT,MPI_SUM,world);
+  MPI_Allreduce(&local_element_count,&total_element_count,1,MPI_INT,MPI_SUM,world);
 
 
 	for (int i = 0; i < nlocal; i++)
@@ -172,7 +179,7 @@ void DumpCAC_Kinetic::write_header(bigint n)
   if (me == 0) {
 	fprintf(fp, " t= " BIGINT_FORMAT " n= " BIGINT_FORMAT
 	" e= " BIGINT_FORMAT " Q4 " "\n",
-	update->ntimestep, (bigint)total_node_count, atom->natoms);
+	update->ntimestep, (bigint)total_node_count, total_element_count);
   }
 }
 
@@ -194,6 +201,7 @@ void DumpCAC_Kinetic::pack(tagint *ids)
   int **node_types = atom->node_types;
   int **element_scale = atom->element_scale;
   double *mass = atom->mass;
+  double mvv2e = force->mvv2e;
   m = n = 0;
   for (int i = 0; i < nlocal; i++) {
 	  if (mask[i] & groupbit) {
@@ -204,16 +212,16 @@ void DumpCAC_Kinetic::pack(tagint *ids)
 		  buf[m++] = double(element_scale[i][1]);
 		  buf[m++] = double(element_scale[i][2]);
 
+    for (int k = 0; k < poly_count[i]; k++) {
 	  for (int j = 0; j < nodes_per_element_list[element_type[i]]; j++) {
-		  for (int k = 0; k < poly_count[i]; k++) {
 			  buf[m++] = double(j + 1);
 			  buf[m++] = double(k + 1);
 			  buf[m++] = double(node_types[i][k]);
-			  buf[m++] = mass[node_types[i][k]]*nodal_velocities[i][j][k][0]* nodal_velocities[i][j][k][0];
-			  buf[m++] = mass[node_types[i][k]] * nodal_velocities[i][j][k][1]* nodal_velocities[i][j][k][1];
-			  buf[m++] = mass[node_types[i][k]] * nodal_velocities[i][j][k][2]* nodal_velocities[i][j][k][2];
+			  buf[m++] = mvv2e * mass[node_types[i][k]] * nodal_velocities[i][k][j][0] * nodal_velocities[i][k][j][0];
+			  buf[m++] = mvv2e * mass[node_types[i][k]] * nodal_velocities[i][k][j][1] * nodal_velocities[i][k][j][1];
+			  buf[m++] = mvv2e * mass[node_types[i][k]] * nodal_velocities[i][k][j][2] * nodal_velocities[i][k][j][2];
 		  }
-		  }
+		}
 	  }
   }
 }
