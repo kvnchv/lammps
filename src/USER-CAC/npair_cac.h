@@ -39,7 +39,7 @@ class NPairCAC : public NPair {
 
   int CAC_decide_quad2element(int);
 
-  double ***current_nodal_positions;
+  double **current_nodal_positions;
   double cutneighmax;
   int   quadrature_node_count;
   int   quadrature_point_count;
@@ -53,7 +53,7 @@ class NPairCAC : public NPair {
   
 
 protected:
-	int old_atom_count, old_quad_count;
+  int old_atom_count, old_quad_count;
   int expansion_count, max_expansion_count;
 	int *old_atom_etype;
   int quad_allocated;

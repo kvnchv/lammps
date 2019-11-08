@@ -86,14 +86,17 @@ void NBinCAC::bin_atoms_setup(int nall)
 {
 
 }
+
+/* ----------------------------------------------------------------------
+   setup required for CAc binning strategy
+------------------------------------------------------------------------- */
+
 void NBinCAC::CAC_bin_atoms_setup(int nall)
 {
 
   int *element_type = atom->element_type;
 	int *poly_count = atom->poly_count;
   int **element_scale = atom->element_scale;
-  int current_element_type;
-  int neighbor_element_type;
   double ****nodal_positions = atom->nodal_positions;
   double interior_scale[3];
   //check if quadrature rules were initialized
@@ -104,7 +107,6 @@ void NBinCAC::CAC_bin_atoms_setup(int nall)
   
   if (mbins > maxbin) {
     //compute maximum expansion count used in previous allocations
-    
     
     if(!first_alloc){
 		first_alloc=1;
@@ -150,7 +152,7 @@ void NBinCAC::CAC_bin_atoms_setup(int nall)
   }
 
 
-// initialize or grow surface counts array for quadrature scheme
+  // initialize or grow surface counts array for quadrature scheme
 			// along with interior scaling for the quadrature domain
 			if (atom->nlocal  > nmax) {
 				allocate_surface_counts();
@@ -160,7 +162,6 @@ void NBinCAC::CAC_bin_atoms_setup(int nall)
 			surface_counts_max_old[2] = surface_counts_max[2];
 			//atomic_counter = 0;
 			for (int i = 0; i < atom->nlocal; i++) {
-			current_nodal_positions = nodal_positions[i];
 			current_element_scale[0] = element_scale[i][0];
 			current_element_scale[1] = element_scale[i][1];
 			current_element_scale[2] = element_scale[i][2];	
@@ -168,6 +169,8 @@ void NBinCAC::CAC_bin_atoms_setup(int nall)
 				if (element_type[i] != 0) {
 					
 					for (current_poly_counter = 0; current_poly_counter < poly_count[i]; current_poly_counter++) {
+						
+			            current_nodal_positions = nodal_positions[i][current_poly_counter];
 						int poly_surface_count[3];
 						compute_surface_depths(interior_scale[0], interior_scale[1], interior_scale[2],
 							poly_surface_count[0], poly_surface_count[1], poly_surface_count[2], 1);
@@ -210,12 +213,11 @@ void NBinCAC::CAC_bin_atoms_setup(int nall)
     int quadrature_point_count=0;
     int c1,c2,c3;
     int current_quad_count;
-    		for (int init = 0; init < atom->nlocal; init++) {
-			
-			if (element_type[init] == 0){ 
+    	for (int init = 0; init < atom->nlocal; init++) {
+			  if (element_type[init] == 0){ 
 				quadrature_point_count+=1;
-      }
-			else {
+        }
+			  else {
 				c1=surface_counts[init][0];
 				c2=surface_counts[init][1];
 				c3=surface_counts[init][2];
@@ -224,8 +226,8 @@ void NBinCAC::CAC_bin_atoms_setup(int nall)
 		     + 8 * c1*c2*c3;
 				quadrature_point_count+=current_quad_count*poly_count[init];
 				
-			}
-		}
+			  }
+		  }
     memory->grow(quad2bin,quadrature_point_count,"NBinCAC:quad2bin");
 }
 
@@ -270,11 +272,9 @@ void NBinCAC::CAC_setup_bins(int style)
 	double lamda_temp[3];
   double nodal_temp[3];
 	double ***nodal_positions;
-	double shape_func;
 	int *element_type = atom->element_type;
 	int *poly_count = atom->poly_count;
 	double **x = atom->x;
-	double xtmp, ytmp, ztmp, delx, dely, delz, rsq;
 	double ebounding_boxlo[3];
 	double ebounding_boxhi[3];
  
@@ -300,14 +300,11 @@ void NBinCAC::CAC_setup_bins(int style)
     bsubboxhi[0] += cut_max;
     bsubboxhi[1] += cut_max;
     bsubboxhi[2] += cut_max;
-		//loop through elements to compute bounding boxes and test
+	//loop through elements to compute bounding boxes and test
 	//whether they should stretch the local bounding box
 	for(int element_index=0; element_index < atom->nlocal; element_index++){
 	if(element_type[element_index]){
    nodal_positions = atom->nodal_positions[element_index];
-	//int current_poly_count = poly_count[element_index];
-    int current_poly_count = poly_count[element_index];
-	int nodes_per_element = nodes_per_element_list[element_type[element_index]];
  
   double *current_ebox;
   
@@ -338,17 +335,6 @@ void NBinCAC::CAC_setup_bins(int style)
 	//i.e. a local particle being binned where ghosts would normally be binned
 	}
 	}
-	/*
-	else if(element_index>=atom->nlocal){ 
-  //test if this ghost exceeds local sub box
-	for(int dim=0; dim < dimension; dim++){
-	if(x[element_index][dim]>bsubboxhi[dim])
-	bsubboxhi[dim]=x[element_index][dim];
-	if(x[element_index][dim]<bsubboxlo[dim])
-	bsubboxlo[dim]=x[element_index][dim];
-	}
-	}
-	*/
 	}
 	
 
@@ -385,9 +371,9 @@ void NBinCAC::CAC_setup_bins(int style)
 	for (int poly_counter = 0; poly_counter < current_poly_count; poly_counter++) {
 		for (int kkk = 0; kkk < nodes_per_element; kkk++) {
 			
-		nodal_temp[0]=nodal_positions[kkk][poly_counter][0];
-		nodal_temp[1]=nodal_positions[kkk][poly_counter][1];
-		nodal_temp[2]=nodal_positions[kkk][poly_counter][2];
+		nodal_temp[0]=nodal_positions[poly_counter][kkk][0];
+		nodal_temp[1]=nodal_positions[poly_counter][kkk][1];
+		nodal_temp[2]=nodal_positions[poly_counter][kkk][2];
 		domain->x2lamda(nodal_temp, lamda_temp);
 			//test if this node lies outside local box and stretch box
 		for(int dim=0; dim < dimension; dim++){
@@ -512,21 +498,13 @@ void NBinCAC::CAC_setup_bins(int style)
   // static_cast(-1.5) = -1, so subract additional -1
   // add in SMALL for round-off safety
 
-  int mbinxhi,mbinyhi,mbinzhi;
-  double coord;
-
   mbinzlo=mbinylo=mbinxlo=-1;
 	
- 
   // extend bins by 1 to insure stencil extent is included
   // for 2d, only 1 bin in z
 
-  //mbinxlo = mbinxlo - 1;
-  //mbinxhi = mbinxhi + 1;
   mbinx = nbinx+2;
 
-  //mbinylo = mbinylo - 1;
-  //mbinyhi = mbinyhi + 1;
   mbiny = nbiny+2;
 
   mbinz = nbinz+2;
@@ -565,7 +543,6 @@ void NBinCAC::bin_atoms()
   int *mask = atom->mask;
   int nlocal = atom->nlocal;
   int nall = nlocal + atom->nghost;
-  int noverlap;
   int current_bin_ncount;
   int *element_type= atom->element_type;
   int current_bin;
@@ -750,9 +727,9 @@ void NBinCAC::bin_atoms()
     for (i = 0; i < nall; i++) {
       //computes the quadrature point locations for this ith element and returns the # of points
     int current_element_type = element_type[i];
-	current_element_scale[0] = element_scale[i][0];
-	current_element_scale[1] = element_scale[i][1];
-	current_element_scale[2] = element_scale[i][2];
+	  current_element_scale[0] = element_scale[i][0];
+	  current_element_scale[1] = element_scale[i][1];
+	  current_element_scale[2] = element_scale[i][2];
  
   
 		//find the current quadrature points of this element
@@ -922,32 +899,22 @@ void NBinCAC::bin_atoms()
 
  int NBinCAC::element2bins(int element_index)
 {
-  
-	double shape_func;
 	int *element_type = atom->element_type;
 	int *poly_count = atom->poly_count;
-	double xtmp, ytmp, ztmp, delx, dely, delz, rsq;
 	double bounding_boxlo[3];
 	double bounding_boxhi[3];
 	double *cutghost = comm->cutghost;
-  //double CAC_cut= atom->CAC_cut;
   
 	double **eboxes=atom->eboxes;
 	double **foreign_eboxes=atom->foreign_eboxes;
 	int *ebox_ref=atom->ebox_ref;
 	double *x;
-	double ***nodal_positions;
-	int current_poly_count;
-	int nodes_per_element;
   
 	int *nodes_per_element_list = atom->nodes_per_element_list;
   int ix,iy,iz;
   int ixl,iyl,izl,ixh,iyh,izh;
 	if(!foreign_boxes){
    x = atom->x[element_index];
-	nodal_positions = atom->nodal_positions[element_index];
-	current_poly_count = poly_count[element_index];
-	nodes_per_element = nodes_per_element_list[element_type[element_index]];
 	}
   //typical binning for atoms
   if(!foreign_boxes){
@@ -985,11 +952,7 @@ if (x[2] > bsubboxhi[2])
 
   //calculate the set of bins this element's bounding box overlaps
   if(decision_flag){
-    
-	//int current_poly_count = poly_count[element_index];
-    
- 
-
+  
   double *current_ebox;
   if(!foreign_boxes)
   current_ebox = eboxes[ebox_ref[element_index]];
@@ -1067,9 +1030,6 @@ if (x[2] > bsubboxhi[2])
   bin_overlap_limits[3]=ixh;
   bin_overlap_limits[4]=iyh;
   bin_overlap_limits[5]=izh;
-
-  //return (iz-mbinzlo)*mbiny*mbinx + (iy-mbinylo)*mbinx + (ix-mbinxlo);
-
   }
   return (iz-mbinzlo)*mbiny*mbinx + (iy-mbinylo)*mbinx + (ix-mbinxlo);
 }
@@ -1089,31 +1049,31 @@ void NBinCAC::compute_surface_depths(double &scalex, double &scaley, double &sca
 	unit_cell_mapped[0] = 2 / double(current_element_scale[0]);
 	unit_cell_mapped[1] = 2 / double(current_element_scale[1]);
 	unit_cell_mapped[2] = 2 / double(current_element_scale[2]);
-	double ds_x = (current_nodal_positions[0][poly][0] - current_nodal_positions[1][poly][0])*
-		(current_nodal_positions[0][poly][0] - current_nodal_positions[1][poly][0]);
-	double ds_y = (current_nodal_positions[0][poly][1] - current_nodal_positions[1][poly][1])*
-		(current_nodal_positions[0][poly][1] - current_nodal_positions[1][poly][1]);
-	double ds_z = (current_nodal_positions[0][poly][2] - current_nodal_positions[1][poly][2])*
-		(current_nodal_positions[0][poly][2] - current_nodal_positions[1][poly][2]);
+	double ds_x = (current_nodal_positions[0][0] - current_nodal_positions[1][0])*
+		(current_nodal_positions[0][0] - current_nodal_positions[1][0]);
+	double ds_y = (current_nodal_positions[0][1] - current_nodal_positions[1][1])*
+		(current_nodal_positions[0][1] - current_nodal_positions[1][1]);
+	double ds_z = (current_nodal_positions[0][2] - current_nodal_positions[1][2])*
+		(current_nodal_positions[0][2] - current_nodal_positions[1][2]);
 	double ds_surf = 2 * rcut / sqrt(ds_x + ds_y + ds_z);
 	ds_surf = unit_cell_mapped[0] * (int)(ds_surf / unit_cell_mapped[0]) + unit_cell_mapped[0];
 
-	double dt_x = (current_nodal_positions[0][poly][0] - current_nodal_positions[3][poly][0])*
-		(current_nodal_positions[0][poly][0] - current_nodal_positions[3][poly][0]);
-	double dt_y = (current_nodal_positions[0][poly][1] - current_nodal_positions[3][poly][1])*
-		(current_nodal_positions[0][poly][1] - current_nodal_positions[3][poly][1]);
-	double dt_z = (current_nodal_positions[0][poly][2] - current_nodal_positions[3][poly][2])*
-		(current_nodal_positions[0][poly][2] - current_nodal_positions[3][poly][2]);
+	double dt_x = (current_nodal_positions[0][0] - current_nodal_positions[3][0])*
+		(current_nodal_positions[0][0] - current_nodal_positions[3][0]);
+	double dt_y = (current_nodal_positions[0][1] - current_nodal_positions[3][1])*
+		(current_nodal_positions[0][1] - current_nodal_positions[3][1]);
+	double dt_z = (current_nodal_positions[0][2] - current_nodal_positions[3][2])*
+		(current_nodal_positions[0][2] - current_nodal_positions[3][2]);
 
 	double dt_surf = 2 * rcut / sqrt(dt_x + dt_y + dt_z);
 	dt_surf = unit_cell_mapped[1] * (int)(dt_surf / unit_cell_mapped[1]) + unit_cell_mapped[1];
 
-	double dw_x = (current_nodal_positions[0][poly][0] - current_nodal_positions[4][poly][0])*
-		(current_nodal_positions[0][poly][0] - current_nodal_positions[4][poly][0]);
-	double dw_y = (current_nodal_positions[0][poly][1] - current_nodal_positions[4][poly][1])*
-		(current_nodal_positions[0][poly][1] - current_nodal_positions[3][poly][1]);
-	double dw_z = (current_nodal_positions[0][poly][2] - current_nodal_positions[4][poly][2])*
-		(current_nodal_positions[0][poly][2] - current_nodal_positions[4][poly][2]);
+	double dw_x = (current_nodal_positions[0][0] - current_nodal_positions[4][0])*
+		(current_nodal_positions[0][0] - current_nodal_positions[4][0]);
+	double dw_y = (current_nodal_positions[0][1] - current_nodal_positions[4][1])*
+		(current_nodal_positions[0][1] - current_nodal_positions[3][1]);
+	double dw_z = (current_nodal_positions[0][2] - current_nodal_positions[4][2])*
+		(current_nodal_positions[0][2] - current_nodal_positions[4][2]);
 
 	double dw_surf = 2 * rcut / sqrt(dw_x + dw_y + dw_z);
 	dw_surf = unit_cell_mapped[2] * (int)(dw_surf / unit_cell_mapped[2]) + unit_cell_mapped[2];
@@ -1135,6 +1095,12 @@ void NBinCAC::compute_surface_depths(double &scalex, double &scaley, double &sca
 	scalex = 1 - ds_surf;
 	scaley = 1 - dt_surf;
 	scalez = 1 - dw_surf;
+	if(ds_surf==1)
+	scalex = 0.0;
+	if(dt_surf==1)
+	scaley = 0.0;
+	if(dw_surf==1)
+	scalez = 0.0;
 
 	countx = (int)(ds_surf / unit_cell_mapped[0]);
 	county = (int)(dt_surf / unit_cell_mapped[1]);
@@ -1187,26 +1153,22 @@ int NBinCAC::compute_quad_points(int element_index){
 	double interior_scale[3];
 	int surface_count[3];
 	int nodes_per_element;
-	int found_flag=0;
 	double s, t, w;
-	double **x = atom->x;
 	s = t = w = 0;
-	double sq, tq, wq;
 	double quad_position[3];
 	double ****nodal_positions = atom->nodal_positions;
 	double shape_func;
 	int *element_type = atom->element_type;
     int **element_scale = atom->element_scale;
 	int *poly_count = atom->poly_count;
-	double xtmp, ytmp, ztmp, delx, dely, delz, rsq;
 	int *nodes_per_element_list = atom->nodes_per_element_list;
 	 nodes_per_element = nodes_per_element_list[element_type[element_index]];
 	unit_cell_mapped[0] = 2 / double(element_scale[element_index][0]);
 	unit_cell_mapped[1] = 2 / double(element_scale[element_index][1]);
 	unit_cell_mapped[2] = 2 / double(element_scale[element_index][2]);
-	double ***current_nodal_positions = nodal_positions[element_index];
 	int current_poly_count = poly_count[element_index];
     int quadrature_counter=0;
+	int signs, signt, signw;
 
 
 	//compute quadrature point positions to test for neighboring
@@ -1215,39 +1177,53 @@ int NBinCAC::compute_quad_points(int element_index){
 	sign[0] = -1;
 	sign[1] = 1;
 	
-  	    surface_count[0]=surface_counts[element_index][0];
-		surface_count[1]=surface_counts[element_index][1];
-		surface_count[2]=surface_counts[element_index][2];
-	    interior_scale[0]= interior_scales[element_index][0];
-		interior_scale[1]= interior_scales[element_index][1];
-		interior_scale[2]= interior_scales[element_index][2];
+    surface_count[0]=surface_counts[element_index][0];
+	surface_count[1]=surface_counts[element_index][1];
+	surface_count[2]=surface_counts[element_index][2];
+	interior_scale[0]= interior_scales[element_index][0];
+	interior_scale[1]= interior_scales[element_index][1];
+	interior_scale[2]= interior_scales[element_index][2];
 	for (int poly_counter = 0; poly_counter < current_poly_count; poly_counter++) {
-		//current_poly_counter = poly_counter;
-		
-		
+	    current_nodal_positions = nodal_positions[element_index][poly_counter];
 		//interior contributions
-
-
 		for (int i = 0; i < quadrature_node_count; i++) {
 			for (int j = 0; j < quadrature_node_count; j++) {
 				for (int k = 0; k < quadrature_node_count; k++) {
 
-					sq = s = interior_scale[0] * quadrature_abcissae[i];
-					tq = t = interior_scale[1] * quadrature_abcissae[j];
-					wq = w = interior_scale[2] * quadrature_abcissae[k];
-					s = unit_cell_mapped[0] * (int(s / unit_cell_mapped[0]));
-					t = unit_cell_mapped[1] * (int(t / unit_cell_mapped[1]));
-					w = unit_cell_mapped[2] * (int(w / unit_cell_mapped[2]));
+					s = interior_scale[0] * quadrature_abcissae[i];
+					t = interior_scale[1] * quadrature_abcissae[j];
+					w = interior_scale[2] * quadrature_abcissae[k];
+					signs=signt=signw=1;
+					if(s<0) signs=-1;
+					if(t<0) signt=-1;
+					if(w<0) signw=-1;
+					s = unit_cell_mapped[0] * (int((s+signs) / unit_cell_mapped[0]))-signs;
+					t = unit_cell_mapped[1] * (int((t+signt) / unit_cell_mapped[1]))-signt;
+					w = unit_cell_mapped[2] * (int((w+signw) / unit_cell_mapped[2]))-signw;
 
+          if (quadrature_abcissae[i] < 0)
+						s = s - 0.5*unit_cell_mapped[0];
+					else
+						s = s + 0.5*unit_cell_mapped[0];
+
+					if (quadrature_abcissae[j] < 0)
+						t = t - 0.5*unit_cell_mapped[1];
+					else
+						t = t + 0.5*unit_cell_mapped[1];
+
+					if (quadrature_abcissae[k] < 0)
+						w = w - 0.5*unit_cell_mapped[2];
+					else
+						w = w + 0.5*unit_cell_mapped[2];
 
 					quad_position[0] = 0;
 					quad_position[1] = 0;
 					quad_position[2] = 0;
 					for (int kkk = 0; kkk < nodes_per_element; kkk++) {
 						shape_func = shape_function(s, t, w, 2, kkk + 1);
-						quad_position[0] += current_nodal_positions[kkk][poly_counter][0] * shape_func;
-						quad_position[1] += current_nodal_positions[kkk][poly_counter][1] * shape_func;
-						quad_position[2] += current_nodal_positions[kkk][poly_counter][2] * shape_func;
+						quad_position[0] += current_nodal_positions[kkk][0] * shape_func;
+						quad_position[1] += current_nodal_positions[kkk][1] * shape_func;
+						quad_position[2] += current_nodal_positions[kkk][2] * shape_func;
 					}
 
 				 current_element_quad_points[quadrature_counter][0]=quad_position[0];
@@ -1264,14 +1240,15 @@ int NBinCAC::compute_quad_points(int element_index){
 		for (int i = 0; i < surface_count[0]; i++) {
 			for (int j = 0; j < quadrature_node_count; j++) {
 				for (int k = 0; k < quadrature_node_count; k++) {
-					
-						s = sign[sc] - i*unit_cell_mapped[0] * sign[sc];
-
+					  s = sign[sc] - i*unit_cell_mapped[0] * sign[sc];
 						s = s - 0.5*unit_cell_mapped[0] * sign[sc];
-						tq = t = interior_scale[1] * quadrature_abcissae[j];
-						wq = w = interior_scale[2] * quadrature_abcissae[k];
-						t = unit_cell_mapped[1] * (int(t / unit_cell_mapped[1]));
-						w = unit_cell_mapped[2] * (int(w / unit_cell_mapped[2]));
+						t = interior_scale[1] * quadrature_abcissae[j];
+						w = interior_scale[2] * quadrature_abcissae[k];
+						signs=signt=signw=1;
+					  if(t<0) signt=-1;
+					  if(w<0) signw=-1;
+						t = unit_cell_mapped[1] * (int((t+signt) / unit_cell_mapped[1]))-signt;
+						w = unit_cell_mapped[2] * (int((w+signw) / unit_cell_mapped[2]))-signw;
 
 						if (quadrature_abcissae[k] < 0)
 							w = w - 0.5*unit_cell_mapped[2];
@@ -1288,9 +1265,9 @@ int NBinCAC::compute_quad_points(int element_index){
 						quad_position[2] = 0;
 						for (int kkk = 0; kkk < nodes_per_element; kkk++) {
 							shape_func = shape_function(s, t, w, 2, kkk + 1);
-							quad_position[0] += current_nodal_positions[kkk][poly_counter][0] * shape_func;
-							quad_position[1] += current_nodal_positions[kkk][poly_counter][1] * shape_func;
-							quad_position[2] += current_nodal_positions[kkk][poly_counter][2] * shape_func;
+							quad_position[0] += current_nodal_positions[kkk][0] * shape_func;
+							quad_position[1] += current_nodal_positions[kkk][1] * shape_func;
+							quad_position[2] += current_nodal_positions[kkk][2] * shape_func;
 						}
 
 				 current_element_quad_points[quadrature_counter][0]=quad_position[0];
@@ -1310,15 +1287,15 @@ int NBinCAC::compute_quad_points(int element_index){
 		for (int i = 0; i < surface_count[1]; i++) {
 			for (int j = 0; j < quadrature_node_count; j++) {
 				for (int k = 0; k < quadrature_node_count; k++) {
-					
-
-						sq = s = interior_scale[0] * quadrature_abcissae[j];
-						s = unit_cell_mapped[0] * (int(s / unit_cell_mapped[0]));
+					  s = interior_scale[0] * quadrature_abcissae[j];
 						t = sign[sc] - i*unit_cell_mapped[1] * sign[sc];
-
 						t = t - 0.5*unit_cell_mapped[1] * sign[sc];
-						wq = w = interior_scale[2] * quadrature_abcissae[k];
-						w = unit_cell_mapped[2] * (int(w / unit_cell_mapped[2]));
+						w = interior_scale[2] * quadrature_abcissae[k];
+            signs=signt=signw=1;
+					  if(s<0) signs=-1;
+					  if(w<0) signw=-1;
+						s = unit_cell_mapped[0] * (int((s+signs) / unit_cell_mapped[0]))-signs;
+						w = unit_cell_mapped[2] * (int((w+signw) / unit_cell_mapped[2]))-signw;
 
 						if (quadrature_abcissae[j] < 0)
 							s = s - 0.5*unit_cell_mapped[0];
@@ -1335,9 +1312,9 @@ int NBinCAC::compute_quad_points(int element_index){
 						quad_position[2] = 0;
 						for (int kkk = 0; kkk < nodes_per_element; kkk++) {
 							shape_func = shape_function(s, t, w, 2, kkk + 1);
-							quad_position[0] += current_nodal_positions[kkk][poly_counter][0] * shape_func;
-							quad_position[1] += current_nodal_positions[kkk][poly_counter][1] * shape_func;
-							quad_position[2] += current_nodal_positions[kkk][poly_counter][2] * shape_func;
+							quad_position[0] += current_nodal_positions[kkk][0] * shape_func;
+							quad_position[1] += current_nodal_positions[kkk][1] * shape_func;
+							quad_position[2] += current_nodal_positions[kkk][2] * shape_func;
 						}
 
 				 current_element_quad_points[quadrature_counter][0]=quad_position[0];
@@ -1350,21 +1327,20 @@ int NBinCAC::compute_quad_points(int element_index){
 			}
 		}
 	
-
 	//w axis surface contributions
 	
 	for (int sc = 0; sc < 2; sc++) {
 		for (int i = 0; i < surface_count[2]; i++) {
 			for (int j = 0; j < quadrature_node_count; j++) {
 				for (int k = 0; k < quadrature_node_count; k++) {
-					
-
-						sq = s = interior_scale[0] * quadrature_abcissae[j];
-						s = unit_cell_mapped[0] * (int(s / unit_cell_mapped[0]));
-						tq = t = interior_scale[1] * quadrature_abcissae[k];
-						t = unit_cell_mapped[1] * (int(t / unit_cell_mapped[1]));
+					  s = interior_scale[0] * quadrature_abcissae[j];
+						t = interior_scale[1] * quadrature_abcissae[k];
+						signs=signt=signw=1;
+					  if(s<0) signs=-1;
+					  if(t<0) signt=-1;
+						s = unit_cell_mapped[0] * (int((s+signs) / unit_cell_mapped[0]))-signs;
+						t = unit_cell_mapped[1] * (int((t+signt) / unit_cell_mapped[1]))-signt;
 						w = sign[sc] - i*unit_cell_mapped[2] * sign[sc];
-
 						w = w - 0.5*unit_cell_mapped[2] * sign[sc];
 
 						if (quadrature_abcissae[j] < 0)
@@ -1383,9 +1359,9 @@ int NBinCAC::compute_quad_points(int element_index){
 						quad_position[2] = 0;
 						for (int kkk = 0; kkk < nodes_per_element; kkk++) {
 							shape_func = shape_function(s, t, w, 2, kkk + 1);
-							quad_position[0] += current_nodal_positions[kkk][poly_counter][0] * shape_func;
-							quad_position[1] += current_nodal_positions[kkk][poly_counter][1] * shape_func;
-							quad_position[2] += current_nodal_positions[kkk][poly_counter][2] * shape_func;
+							quad_position[0] += current_nodal_positions[kkk][0] * shape_func;
+							quad_position[1] += current_nodal_positions[kkk][1] * shape_func;
+							quad_position[2] += current_nodal_positions[kkk][2] * shape_func;
 						}
 
 				 current_element_quad_points[quadrature_counter][0]=quad_position[0];
@@ -1398,8 +1374,6 @@ int NBinCAC::compute_quad_points(int element_index){
 			}
 		}
 	
-
-
 	int surface_countx;
 	int surface_county;
 
@@ -1431,50 +1405,60 @@ int NBinCAC::compute_quad_points(int element_index){
 					
 						if (sc == 0) {
 
-							sq = s = -1 + (i + 0.5)*unit_cell_mapped[0];
-							tq = t = -1 + (j + 0.5)*unit_cell_mapped[1];
-							wq = w = interior_scale[2] * quadrature_abcissae[k];
-							w = unit_cell_mapped[2] * (int(w / unit_cell_mapped[2]));
+							s = -1 + (i + 0.5)*unit_cell_mapped[0];
+							t = -1 + (j + 0.5)*unit_cell_mapped[1];
+							w = interior_scale[2] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(w<0) signw=-1;
+							w = unit_cell_mapped[2] * (int((w+signw) / unit_cell_mapped[2]))-signw;
 							if (quadrature_abcissae[k] < 0)
 								w = w - 0.5*unit_cell_mapped[2];
 							else
 								w = w + 0.5*unit_cell_mapped[2];
 						}
 						else if (sc == 1) {
-							sq = s = 1 - (i + 0.5)*unit_cell_mapped[0];
-							tq = t = -1 + (j + 0.5)*unit_cell_mapped[1];
-							wq = w = interior_scale[2] * quadrature_abcissae[k];
-							w = unit_cell_mapped[2] * (int(w / unit_cell_mapped[2]));
+							s = 1 - (i + 0.5)*unit_cell_mapped[0];
+							t = -1 + (j + 0.5)*unit_cell_mapped[1];
+							w = interior_scale[2] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(w<0) signw=-1;
+							w = unit_cell_mapped[2] * (int((w+signw) / unit_cell_mapped[2]))-signw;
 							if (quadrature_abcissae[k] < 0)
 								w = w - 0.5*unit_cell_mapped[2];
 							else
 								w = w + 0.5*unit_cell_mapped[2];
 						}
 						else if (sc == 2) {
-							sq = s = -1 + (i + 0.5)*unit_cell_mapped[0];
-							tq = t = 1 - (j + 0.5)*unit_cell_mapped[1];
-							wq = w = interior_scale[2] * quadrature_abcissae[k];
-							w = unit_cell_mapped[2] * (int(w / unit_cell_mapped[2]));
+							s = -1 + (i + 0.5)*unit_cell_mapped[0];
+							t = 1 - (j + 0.5)*unit_cell_mapped[1];
+							w = interior_scale[2] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(w<0) signw=-1;
+							w = unit_cell_mapped[2] * (int((w+signw) / unit_cell_mapped[2]))-signw;
 							if (quadrature_abcissae[k] < 0)
 								w = w - 0.5*unit_cell_mapped[2];
 							else
 								w = w + 0.5*unit_cell_mapped[2];
 						}
 						else if (sc == 3) {
-							sq = s = 1 - (i + 0.5)*unit_cell_mapped[0];
-							tq = t = 1 - (j + 0.5)*unit_cell_mapped[1];
-							wq = w = interior_scale[2] * quadrature_abcissae[k];
-							w = unit_cell_mapped[2] * (int(w / unit_cell_mapped[2]));
+							s = 1 - (i + 0.5)*unit_cell_mapped[0];
+							t = 1 - (j + 0.5)*unit_cell_mapped[1];
+							w = interior_scale[2] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(w<0) signw=-1;
+							w = unit_cell_mapped[2] * (int((w+signw) / unit_cell_mapped[2]))-signw;
 							if (quadrature_abcissae[k] < 0)
 								w = w - 0.5*unit_cell_mapped[2];
 							else
 								w = w + 0.5*unit_cell_mapped[2];
 						}
 						else if (sc == 4) {
-							sq = s = interior_scale[0] * quadrature_abcissae[k];
-							s = unit_cell_mapped[0] * (int(s / unit_cell_mapped[0]));
-							tq = t = -1 + (i + 0.5)*unit_cell_mapped[1];
-							wq = w = -1 + (j + 0.5)*unit_cell_mapped[2];
+							s = interior_scale[0] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(s<0) signs=-1;
+							s = unit_cell_mapped[0] * (int((s+signs) / unit_cell_mapped[0]))-signs;
+							t = -1 + (i + 0.5)*unit_cell_mapped[1];
+							w = -1 + (j + 0.5)*unit_cell_mapped[2];
 							if (quadrature_abcissae[k] < 0)
 								s = s - 0.5*unit_cell_mapped[0];
 							else
@@ -1482,40 +1466,48 @@ int NBinCAC::compute_quad_points(int element_index){
 
 						}
 						else if (sc == 5) {
-							sq = s = interior_scale[0] * quadrature_abcissae[k];
-							s = unit_cell_mapped[0] * (int(s / unit_cell_mapped[0]));
-							tq = t = 1 - (i + 0.5)*unit_cell_mapped[1];
-							wq = w = -1 + (j + 0.5)*unit_cell_mapped[2];
+							s = interior_scale[0] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(s<0) signs=-1;
+							s = unit_cell_mapped[0] * (int((s+signs) / unit_cell_mapped[0]))-signs;
+							t = 1 - (i + 0.5)*unit_cell_mapped[1];
+							w = -1 + (j + 0.5)*unit_cell_mapped[2];
 							if (quadrature_abcissae[k] < 0)
 								s = s - 0.5*unit_cell_mapped[0];
 							else
 								s = s + 0.5*unit_cell_mapped[0];
 						}
 						else if (sc == 6) {
-							sq = s = interior_scale[0] * quadrature_abcissae[k];
-							s = unit_cell_mapped[0] * (int(s / unit_cell_mapped[0]));
-							tq = t = -1 + (i + 0.5)*unit_cell_mapped[1];
-							wq = w = 1 - (j + 0.5)*unit_cell_mapped[2];
+							s = interior_scale[0] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(s<0) signs=-1;
+							s = unit_cell_mapped[0] * (int((s+signs) / unit_cell_mapped[0]))-signs;
+							t = -1 + (i + 0.5)*unit_cell_mapped[1];
+							w = 1 - (j + 0.5)*unit_cell_mapped[2];
 							if (quadrature_abcissae[k] < 0)
 								s = s - 0.5*unit_cell_mapped[0];
 							else
 								s = s + 0.5*unit_cell_mapped[0];
 						}
 						else if (sc == 7) {
-							sq = s = interior_scale[0] * quadrature_abcissae[k];
-							s = unit_cell_mapped[0] * (int(s / unit_cell_mapped[0]));
-							tq = t = 1 - (i + 0.5)*unit_cell_mapped[1];
-							wq = w = 1 - (j + 0.5)*unit_cell_mapped[2];
+							s = interior_scale[0] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(s<0) signs=-1;
+							s = unit_cell_mapped[0] * (int((s+signs) / unit_cell_mapped[0]))-signs;
+							t = 1 - (i + 0.5)*unit_cell_mapped[1];
+							w = 1 - (j + 0.5)*unit_cell_mapped[2];
 							if (quadrature_abcissae[k] < 0)
 								s = s - 0.5*unit_cell_mapped[0];
 							else
 								s = s + 0.5*unit_cell_mapped[0];
 						}
 						else if (sc == 8) {
-							sq = s = -1 + (i + 0.5)*unit_cell_mapped[0];
-							tq = t = interior_scale[1] * quadrature_abcissae[k];
-							t = unit_cell_mapped[1] * (int(t / unit_cell_mapped[1]));
-							wq = w = -1 + (j + 0.5)*unit_cell_mapped[2];
+							s = -1 + (i + 0.5)*unit_cell_mapped[0];
+							t = interior_scale[1] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(t<0) signt=-1;
+							t = unit_cell_mapped[1] * (int((t+signt) / unit_cell_mapped[1]))-signt;
+							w = -1 + (j + 0.5)*unit_cell_mapped[2];
 							if (quadrature_abcissae[k] < 0)
 								t = t - 0.5*unit_cell_mapped[1];
 							else
@@ -1523,30 +1515,36 @@ int NBinCAC::compute_quad_points(int element_index){
 
 						}
 						else if (sc == 9) {
-							sq = s = 1 - (i + 0.5)*unit_cell_mapped[0];
-							tq = t = interior_scale[1] * quadrature_abcissae[k];
-							t = unit_cell_mapped[1] * (int(t / unit_cell_mapped[1]));
-							wq = w = -1 + (j + 0.5)*unit_cell_mapped[2];
+							s = 1 - (i + 0.5)*unit_cell_mapped[0];
+							t = interior_scale[1] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(t<0) signt=-1;
+							t = unit_cell_mapped[1] * (int((t+signt) / unit_cell_mapped[1]))-signt;
+							w = -1 + (j + 0.5)*unit_cell_mapped[2];
 							if (quadrature_abcissae[k] < 0)
 								t = t - 0.5*unit_cell_mapped[1];
 							else
 								t = t + 0.5*unit_cell_mapped[1];
 						}
 						else if (sc == 10) {
-							sq = s = -1 + (i + 0.5)*unit_cell_mapped[0];
-							tq = t = interior_scale[1] * quadrature_abcissae[k];
-							t = unit_cell_mapped[1] * (int(t / unit_cell_mapped[1]));
-							wq = w = 1 - (j + 0.5)*unit_cell_mapped[2];
+							s = -1 + (i + 0.5)*unit_cell_mapped[0];
+							t = interior_scale[1] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(t<0) signt=-1;
+							t = unit_cell_mapped[1] * (int((t+signt) / unit_cell_mapped[1]))-signt;
+							w = 1 - (j + 0.5)*unit_cell_mapped[2];
 							if (quadrature_abcissae[k] < 0)
 								t = t - 0.5*unit_cell_mapped[1];
 							else
 								t = t + 0.5*unit_cell_mapped[1];
 						}
 						else if (sc == 11) {
-							sq = s = 1 - (i + 0.5)*unit_cell_mapped[0];
-							tq = t = interior_scale[1] * quadrature_abcissae[k];
-							t = unit_cell_mapped[1] * (int(t / unit_cell_mapped[1]));
-							wq = w = 1 - (j + 0.5)*unit_cell_mapped[2];
+							s = 1 - (i + 0.5)*unit_cell_mapped[0];
+							t = interior_scale[1] * quadrature_abcissae[k];
+							signs=signt=signw=1;
+					        if(t<0) signt=-1;
+							t = unit_cell_mapped[1] * (int((t+signt) / unit_cell_mapped[1]))-signt;
+							w = 1 - (j + 0.5)*unit_cell_mapped[2];
 							if (quadrature_abcissae[k] < 0)
 								t = t - 0.5*unit_cell_mapped[1];
 							else
@@ -1560,13 +1558,13 @@ int NBinCAC::compute_quad_points(int element_index){
 						quad_position[2] = 0;
 						for (int kkk = 0; kkk < nodes_per_element; kkk++) {
 							shape_func = shape_function(s, t, w, 2, kkk + 1);
-							quad_position[0] += current_nodal_positions[kkk][poly_counter][0] * shape_func;
-							quad_position[1] += current_nodal_positions[kkk][poly_counter][1] * shape_func;
-							quad_position[2] += current_nodal_positions[kkk][poly_counter][2] * shape_func;
+							quad_position[0] += current_nodal_positions[kkk][0] * shape_func;
+							quad_position[1] += current_nodal_positions[kkk][1] * shape_func;
+							quad_position[2] += current_nodal_positions[kkk][2] * shape_func;
 						}
 
 				 current_element_quad_points[quadrature_counter][0]=quad_position[0];
-                 current_element_quad_points[quadrature_counter][1]=quad_position[1];
+         current_element_quad_points[quadrature_counter][1]=quad_position[1];
 				 current_element_quad_points[quadrature_counter][2]=quad_position[2];
          quadrature_counter+=1;
 					}
@@ -1635,9 +1633,9 @@ int NBinCAC::compute_quad_points(int element_index){
 						quad_position[2] = 0;
 						for (int kkk = 0; kkk < nodes_per_element; kkk++) {
 							shape_func = shape_function(s, t, w, 2, kkk + 1);
-							quad_position[0] += current_nodal_positions[kkk][poly_counter][0] * shape_func;
-							quad_position[1] += current_nodal_positions[kkk][poly_counter][1] * shape_func;
-							quad_position[2] += current_nodal_positions[kkk][poly_counter][2] * shape_func;
+							quad_position[0] += current_nodal_positions[kkk][0] * shape_func;
+							quad_position[1] += current_nodal_positions[kkk][1] * shape_func;
+							quad_position[2] += current_nodal_positions[kkk][2] * shape_func;
 						}
 
 				 current_element_quad_points[quadrature_counter][0]=quad_position[0];
@@ -1651,8 +1649,6 @@ int NBinCAC::compute_quad_points(int element_index){
 			}
 		}
 	}
-
-
 	return quadrature_counter;
 
 }
@@ -1709,8 +1705,6 @@ double NBinCAC::shape_function(double s, double t, double w, int flag, int index
 		else if (index == 8) {
 			shape_function = (1 - s)*(1 + t)*(1 + w) / 8;
 		}
-
-
 	}
 	return shape_function;
 

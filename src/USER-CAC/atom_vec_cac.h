@@ -65,6 +65,7 @@ class AtomVecCAC : public AtomVec {
   virtual void force_clear(int, size_t);
   virtual int check_distance_function(double deltasq); //specific neighbor rebuild check function 
   virtual void set_hold_properties(); //sets nodal positions at reneighboring step for comparison
+  virtual void shrink_array(int);
 
 
   virtual double shape_function(double, double, double,int,int);
@@ -79,6 +80,7 @@ class AtomVecCAC : public AtomVec {
   double **x,**v,**f;
   double ****nodal_positions,****nodal_velocities,****nodal_forces,
     ****nodal_gradients, ****initial_nodal_positions, *scale_search_range;
+  double ****nodal_virial;
   int *poly_count, **node_types, *element_type,
 	  **element_scale, scale_count, oneflag, *scale_list;
   char **element_names;  
@@ -88,9 +90,12 @@ class AtomVecCAC : public AtomVec {
   double deltasq_trigger;
   int max_old;
   int *node_count_per_poly;
+  int CAC_nmax;
+  int alloc_counter;
 
   double evaluate_check(double x1, double x2, double x3);
   virtual void define_elements();
+  virtual void allocate_element(int,int,int);
 };
 
 }

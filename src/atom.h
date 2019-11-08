@@ -69,6 +69,7 @@ class Atom : protected Pointers {
 
   double **sp;
   double **fm;
+  double **fm_long;
 
   // PERI package
 
@@ -101,6 +102,7 @@ class Atom : protected Pointers {
 	// followed by number of words per node in a data file and the number of pure atoms in the CAC model
   double **node_charges, ****nodal_positions, ****nodal_velocities, ****nodal_forces,
 	  ****nodal_gradients, ****initial_nodal_positions, **eboxes, **foreign_eboxes;
+  double ****nodal_virial;
   int *poly_count, **node_types,  *element_type,
 	  **element_scale, *nodes_per_element_list, bin_foreign, CAC_comm_flag, 
      initial_size, neboxes, local_neboxes, nforeign_eboxes, *ebox_ref;
@@ -110,6 +112,7 @@ class Atom : protected Pointers {
   char **element_names;
   double *min_x, *min_v, *min_f; //used by CAC min styles
   int dense_count; //used when minimizing with CAC styles
+  int CAC_virial;
 
   // USER-DPD package
 
@@ -441,6 +444,11 @@ E: Incorrect atom format in data file
 
 Number of values per atom line in the data file is not consistent with
 the atom style.
+
+E: Incorrect format of ... section in data file
+
+Number or type of values per line in the given section of the data file
+is not consistent with the requirements for this section.
 
 E: Invalid atom type in Atoms section of data file
 

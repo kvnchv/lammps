@@ -35,7 +35,6 @@ class NBinCAC : public NBin {
   virtual void bin_atoms_setup(int);
   
   protected:
-  //int *bin_overlap_buffer;
   int *bin_overlap_limits;
   int first_alloc;
   int max_bin_expansion_count;
@@ -50,7 +49,7 @@ class NBinCAC : public NBin {
 	int *neighbor_copy_index;
   int quadrature_counter;
   int   quadrature_node_count;
-  double ***current_nodal_positions;
+  double **current_nodal_positions;
   int **element_scale;
   int current_element_scale[3];
   int current_poly_counter;

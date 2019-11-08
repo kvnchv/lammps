@@ -34,13 +34,12 @@
 
 
 //#include "math_extra.h"
-#define MAXNEIGH1  70
+#define MAXNEIGH1  300
 #define MAXNEIGH2  30
 #define MAXLINE 1024
 #define DELTA 4
+#define EXPAND 10
 using namespace LAMMPS_NS;
-using namespace MathConst;
-using namespace std;
 
 
 /* ---------------------------------------------------------------------- */
@@ -201,13 +200,8 @@ void PairCACEAM::allocate()
   memory->create(dof_set, 6, 4, "pairCAC:surf_set");
   memory->create(sort_surf_set, 6, 2, "pairCAC:surf_set");
   memory->create(sort_dof_set, 6, 4, "pairCAC:surf_set");
-  memory->create(sort_surf_set, 6, 2, "pairCAC:surf_set");
-  memory->create(sort_dof_set, 6, 4, "pairCAC:surf_set");
   quadrature_init(2);
 }
-
-
-
 
 /* ----------------------------------------------------------------------
  set coeffs for one or more type pairs
@@ -283,18 +277,6 @@ double PairCACEAM::init_one(int i, int j) {
 	
 	cutforcesq = cut_global_s*cut_global_s;
 
-	/*
-	for(int i=0; i<=atom->scale_count; i++) {
-		if(atom->scale_search_range[i]>atom->max_search_range) atom->max_search_range=atom->scale_search_range[i];
-	}
-	*/
-    //atom->CAC_skin=cutoff_skin;
-  //int scale_count=0;
-	//double max_search_range=0;
-	//MPI_Allreduce(&atom->scale_count,&scale_count,1,MPI_INT,MPI_MAX,world);
-	//MPI_Allreduce(&atom->max_search_range,&max_search_range,1,MPI_DOUBLE,MPI_MAX,world);
-	//atom->max_search_range=max_search_range;
-	//atom->scale_count=scale_count;
 	if (outer_neighflag)
 	return 2*cut_global_s;
 	else
@@ -302,7 +284,6 @@ double PairCACEAM::init_one(int i, int j) {
 }
 
 /* ---------------------------------------------------------------------- */
-
 
 void PairCACEAM::init_style()
 {
@@ -373,7 +354,6 @@ void PairCACEAM::init_style()
 	  sort_surf_set[si][1] = surf_set[si][1];
   }
  
-
 }
 
 ////////////////////////
@@ -749,22 +729,13 @@ void *PairCACEAM::extract(const char *str, int &dim)
 void PairCACEAM::force_densities(int iii, double s, double t, double w, double coefficients,
 	double &force_densityx, double &force_densityy, double &force_densityz) {
 
-int internal;
-
 double delx,dely,delz;
-
 double r2inv;
 double r6inv;
 double shape_func;
 double shape_func2;
-double boxmap_matrix[3][3];
-int neighborflag=0;
-int outofbounds=0;
-int timestep=update->ntimestep;
 double unit_cell_mapped[3];
 double scanning_unit_cell[3];
-double box_positions[8][3];
-double ****nodal_gradients=atom->nodal_gradients;
 double forcelj,factor_lj,fpair;
 int *type = atom->type;
 double unit_cell[3];
@@ -774,19 +745,7 @@ double scan_position[3];
 double rcut;
 
 int nodes_per_element;
-int *nodes_count_list = atom->nodes_per_element_list;	
-double cbox_positions[3];
-
-int flagm;
-int neigh_count=0;
-int inner_neigh_index=0;
-int outer_neigh_index = 0;
-double cds[3];
-double maxds=0;
-double maxdt=0;
-double maxdw=0;
-int neighbor_cell_count[3];
-
+int *nodes_count_list = atom->nodes_per_element_list;
 
 //equivalent isoparametric cutoff range for a cube of rcut
 
@@ -794,27 +753,13 @@ unit_cell_mapped[0] = 2 / double(current_element_scale[0]);
 unit_cell_mapped[1] = 2 / double(current_element_scale[1]);
 unit_cell_mapped[2] = 2 / double(current_element_scale[2]);
 
-
-
-
-
-
 unit_cell[0] = s;
 unit_cell[1] = t;
 unit_cell[2] = w;
 
-
-
-
-
 //scan the surrounding unit cell locations in a cartesian grid
 //of isoparametric space until the cutoff is exceeded
 //for each grid scan
-
-
- scanning_unit_cell[0]=unit_cell[0];
- scanning_unit_cell[1]=unit_cell[1];
- scanning_unit_cell[2]=unit_cell[2];
 
 int distanceflag=0;
     current_position[0]=0;
@@ -826,9 +771,9 @@ int distanceflag=0;
 		for (int kkk = 0; kkk < nodes_per_element; kkk++) {
 			shape_func = shape_function(unit_cell[0], unit_cell[1], unit_cell[2], 2, kkk + 1);
 			//shape_func = (this->*shape_functions[kkk])(unit_cell[0], unit_cell[1], unit_cell[2]);
-			current_position[0] += current_nodal_positions[kkk][poly_counter][0] * shape_func;
-			current_position[1] += current_nodal_positions[kkk][poly_counter][1] * shape_func;
-			current_position[2] += current_nodal_positions[kkk][poly_counter][2] * shape_func;
+			current_position[0] += current_nodal_positions[kkk][0] * shape_func;
+			current_position[1] += current_nodal_positions[kkk][1] * shape_func;
+			current_position[2] += current_nodal_positions[kkk][2] * shape_func;
 		}
 	}
 	else {
@@ -840,14 +785,11 @@ int distanceflag=0;
 	rcut = cut_global_s;
 	int origin_type = type_array[poly_counter];
 	
-		
-
 
 	int listtype;
 	int scan_type, scan_type2;
 	int listindex;
 	int poly_index;
-	int poly_grad_scan;
 	double force_contribution[3];
 	int element_index;
 	int *ilist, *jlist, *numneigh, **firstneigh;
@@ -856,28 +798,26 @@ int distanceflag=0;
 	int itype, jtype, ktype;
 	double rsq, r, p, rhoip, rhojp, z2, z2p, recip, phip, psip, phi;
 	double *coeff;
-	int dummy1, m;
-	double dummy2;
+	int m;
   //if(update->ntimestep==1)
   //timer->stamp(Timer::CAC_INIT);
   if(neigh_max_inner>local_inner_max){
-	memory->grow(rho, neigh_max_inner + 1, "Pair_CAC_eam:rho");
-	memory->grow(fp, neigh_max_inner + 1, "Pair_CAC_eam:fp");
-	memory->grow(inner_neighbor_types, neigh_max_inner, "Pair_CAC_eam:inner_neighbor_types");
-	memory->grow(inner_neighbor_coords, neigh_max_inner, 3, "Pair_CAC_eam:inner_neighbor_coords");
-	local_inner_max=neigh_max_inner;
+	memory->grow(rho, neigh_max_inner + 1+EXPAND, "Pair_CAC_eam:rho");
+	memory->grow(fp, neigh_max_inner + 1+EXPAND, "Pair_CAC_eam:fp");
+	memory->grow(inner_neighbor_types, neigh_max_inner+EXPAND, "Pair_CAC_eam:inner_neighbor_types");
+	memory->grow(inner_neighbor_coords, neigh_max_inner+EXPAND, 3, "Pair_CAC_eam:inner_neighbor_coords");
+	local_inner_max=neigh_max_inner+EXPAND;
 	}
 	if(neigh_max_outer>local_outer_max){
-	memory->grow(outer_neighbor_coords, neigh_max_outer, 3, "Pair_CAC_eam:outer_neighbor_coords");
-	memory->grow(outer_neighbor_types, neigh_max_outer, "Pair_CAC_eam:outer_neighbor_types");
-	local_outer_max=neigh_max_outer;
+	memory->grow(outer_neighbor_coords, neigh_max_outer+EXPAND, 3, "Pair_CAC_eam:outer_neighbor_coords");
+	memory->grow(outer_neighbor_types, neigh_max_outer+EXPAND, "Pair_CAC_eam:outer_neighbor_types");
+	local_outer_max=neigh_max_outer+EXPAND;
 	}
   
 	for (int l = 0; l < neigh_max_inner+1; l++) {
 		rho[l] = 0;
 		fp[l] = 0;
 	}
-	dummy1 = dummy2 = 0;
 	tagint itag, jtag;
 	double  rsq1, rsq2;
 	double delr1[3], delr2[3], fj[3], fk[3];
@@ -889,42 +829,29 @@ int distanceflag=0;
 	int **node_types = atom->node_types;
 	origin_type = type_array[poly_counter];
 	double inner_scan_position[3];
+  int **inner_quad_indices = inner_quad_lists_index[iii][neigh_quad_counter];
+	int **outer_quad_indices = outer_quad_lists_index[iii][neigh_quad_counter];
 	//precompute virtual neighbor atom locations
   	
 	
 	for (int l = 0; l < neigh_max_inner; l++) {
-		scanning_unit_cell[0] = inner_quad_lists_ucell[iii][neigh_quad_counter][l][0];
-		scanning_unit_cell[1] = inner_quad_lists_ucell[iii][neigh_quad_counter][l][1];
-		scanning_unit_cell[2] = inner_quad_lists_ucell[iii][neigh_quad_counter][l][2];
 		//listtype = quad_list_container[iii].inner_list2ucell[neigh_quad_counter].cell_indexes[l][0];
-		listindex = inner_quad_lists_index[iii][neigh_quad_counter][l][0];
-		poly_index = inner_quad_lists_index[iii][neigh_quad_counter][l][1];
-		element_index = listindex;
-		element_index &= NEIGHMASK;
+		element_index = inner_quad_indices[l][0];
+		poly_index = inner_quad_indices[l][1];
 		inner_neighbor_types[l] = node_types[element_index][poly_index];
-		neigh_list_cord(inner_neighbor_coords[l][0], inner_neighbor_coords[l][1], inner_neighbor_coords[l][2],
-			element_index, poly_index, scanning_unit_cell[0], scanning_unit_cell[1], scanning_unit_cell[2]);
 
 	}
 	for (int l = 0; l < neigh_max_outer; l++) {
-		scanning_unit_cell[0] = outer_quad_lists_ucell[iii][neigh_quad_counter][l][0];
-		scanning_unit_cell[1] = outer_quad_lists_ucell[iii][neigh_quad_counter][l][1];
-		scanning_unit_cell[2] = outer_quad_lists_ucell[iii][neigh_quad_counter][l][2];
 		//listtype = quad_list_container[iii].inner_list2ucell[neigh_quad_counter].cell_indexes[l][0];
-		listindex = outer_quad_lists_index[iii][neigh_quad_counter][l][0];
-		poly_index = outer_quad_lists_index[iii][neigh_quad_counter][l][1];
-		element_index = listindex;
-		element_index &= NEIGHMASK;
+		element_index = outer_quad_indices[l][0];
+		poly_index = outer_quad_indices[l][1];
 		outer_neighbor_types[l] = node_types[element_index][poly_index];
-		neigh_list_cord(outer_neighbor_coords[l][0], outer_neighbor_coords[l][1], outer_neighbor_coords[l][2],
-			element_index, poly_index, scanning_unit_cell[0], scanning_unit_cell[1], scanning_unit_cell[2]);
 
 	}
-
+  //compute virtual neighbor positions at the current timestep
+	interpolation(iii);
 	//two body accumulation of electron densities to quadrature site
 	for (int l = 0; l < neigh_max_inner; l++) {
-
-
 
 		scan_type = inner_neighbor_types[l];
 		scan_position[0] = inner_neighbor_coords[l][0];
@@ -987,9 +914,6 @@ int distanceflag=0;
 			scan_position[1] = inner_neighbor_coords[k][1];
 			scan_position[2] = inner_neighbor_coords[k][2];
 
-
-
-
 			delr2[0] = scan_position[0] - inner_scan_position[0];
 			delr2[1] = scan_position[1] - inner_scan_position[1];
 			delr2[2] = scan_position[2] - inner_scan_position[2];
@@ -1004,9 +928,6 @@ int distanceflag=0;
 			coeff = rhor_spline[type2rhor[scan_type2][scan_type]][m];
 			rho[l + 1] += ((coeff[3] * p + coeff[4])*p + coeff[5])*p + coeff[6];
 
-
-
-
 		}
 		for (int k = 0; k < neigh_max_outer; k++) {
 			
@@ -1015,10 +936,6 @@ int distanceflag=0;
 			scan_position[0] = outer_neighbor_coords[k][0];
 			scan_position[1] = outer_neighbor_coords[k][1];
 			scan_position[2] = outer_neighbor_coords[k][2];
-
-
-
-
 
 			delr2[0] = scan_position[0] - inner_scan_position[0];
 			delr2[1] = scan_position[1] - inner_scan_position[1];
@@ -1033,10 +950,6 @@ int distanceflag=0;
 			p = MIN(p, 1.0);
 			coeff = rhor_spline[type2rhor[scan_type2][scan_type]][m];
 			rho[l + 1] += ((coeff[3] * p + coeff[4])*p + coeff[5])*p + coeff[6];
-
-
-
-
 		}
 
 	}
@@ -1056,7 +969,6 @@ int distanceflag=0;
  		phi *= scale[origin_type][origin_type];
   		quadrature_energy += phi;
 	}
-	
 
 	//compute derivative of the embedding energy for all atoms in the inner neighborlist
 	for (int l = 0; l < neigh_max_inner; l++) {
@@ -1120,86 +1032,26 @@ int distanceflag=0;
 		phip = z2p*recip - phi*recip;
 		psip = fp[0] * rhojp + fp[l+1] * rhoip + phip;
 		fpair = -scale[origin_type][scan_type] * psip*recip;
-	
 
 		force_densityx += delx*fpair;
 		force_densityy += dely*fpair;
 		force_densityz += delz*fpair;
-		force_contribution[0] = delx*fpair;
-		force_contribution[1] = dely*fpair;
-		force_contribution[2] = delz*fpair;
-		if (quad_eflag) {
+		if(atom->CAC_virial){
+		virial_density[0] += 0.5*delx*delx*fpair;
+		virial_density[1] += 0.5*dely*dely*fpair;
+		virial_density[2] += 0.5*delz*delz*fpair;
+		virial_density[3] += 0.5*delx*dely*fpair;
+		virial_density[4] += 0.5*delx*delz*fpair;
+		virial_density[5] += 0.5*dely*delz*fpair;
+		}
+		if (quad_eflag) 
+		  quadrature_energy += 0.5*scale[origin_type][scan_type]*phi;
 
-			
-			
-			
-			scanning_unit_cell[0] = inner_quad_lists_ucell[iii][neigh_quad_counter][l][0];
-			scanning_unit_cell[1] = inner_quad_lists_ucell[iii][neigh_quad_counter][l][1];
-			scanning_unit_cell[2] = inner_quad_lists_ucell[iii][neigh_quad_counter][l][2];
-			
-			listindex = inner_quad_lists_index[iii][neigh_quad_counter][l][0];
-			poly_grad_scan = inner_quad_lists_index[iii][neigh_quad_counter][l][1];
-			
-
-			quadrature_energy += 0.5*scale[origin_type][scan_type]*phi;
-
-			//compute gradients of the potential with respect to nodes
-			//the calculation is the chain rule derivative evaluation of the integral of the energy density
-			//added for every internal degree of freedom i.e. u=u1+u2+u3..upoly defines the total unit cell energy density to integrate
-			//differentiating with nodal positions leaves terms of force contributions times shape function at the particle locations
-			//corresponding to the force contributions at that quadrature point
-			/*
-			if(update->whichflag==2){
-            if (!atomic_flag){
-    			for (int js = 0; js < nodes_per_element; js++) {
-    				for (int jj = 0; jj < 3; jj++) {
-							if (listindex == iii) {
-    					current_nodal_gradients[js][poly_counter][jj] += coefficients*force_contribution[jj] *
-    						shape_function(s, t, w, 2, js + 1)/2;
-							}
-    					//listindex determines if the neighbor virtual atom belongs to the current element or a neighboring element
-    					//derivative contributions are zero for jth virtual atoms in other elements that depend on other nodal variables
-    					if (listindex <atom->nlocal) {
-    						nodal_gradients[listindex][js][poly_grad_scan][jj] -= coefficients*force_contribution[jj] *
-    							shape_function(scanning_unit_cell[0], scanning_unit_cell[1], scanning_unit_cell[2], 2, js + 1)/2;
-    					}
-
-    				}
-    			}
-            }
-            else{
-                for (int jj = 0; jj < 3; jj++){
-                    current_nodal_gradients[0][poly_counter][jj] += coefficients*force_contribution[jj];
-                }
-            }
-		    }
-				*/
-        }
 	}
-	
-  //if(update->ntimestep==1)
-  //timer->stamp(Timer::CAC_FD);
    
 //end of scanning loop
 
-
- //induce segfault to debug
- //segv=force_density[133][209];
-
-
-
-
-
-
-
-
 }
-
-
-
-
-
-
 
 //--------------------------------------------------------------------------
 

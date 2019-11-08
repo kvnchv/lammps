@@ -26,9 +26,6 @@
 
 #define QUADSCALE  0 //adhoc scaling used to offset the fact that quadrature points
 #define QUADSCALE2  0 //adhoc scaling used to offset the fact that quadrature points
-#define MAXNEIGH   1000 //used to divide weights so they aren't such large numbers
-//for elements are more expensive due to the tendency to have more nodal interpolation
-//for their neighbors; optimized for a case with a block of atoms inside a block of FE
 
 using namespace LAMMPS_NS;
 
@@ -79,8 +76,8 @@ void ComputeCACQuadCount::compute_peratom()
     memory->destroy(quad_count);
     nmax = atom->nmax;
     memory->create(quad_count,nmax,"compute_CAC_quad_count: quad_count");
-    vector_atom = quad_count;
   }
+  vector_atom = quad_count;
   int nlocal = atom->nlocal;
   // compute quadrature counts for each CAC element in the group
   for (int i = 0; i < nlocal; i++) {
@@ -105,9 +102,9 @@ void ComputeCACQuadCount::compute_peratom()
 	  if(atom->neigh_weight_flag==0){
 			//if(1){
 	  current_element_scale = element_scale[i];
-	  current_nodal_positions = nodal_positions[i];
 	  current_element_type = element_type[i];
 	  current_poly_count = poly_count[i];
+	  current_nodal_positions = nodal_positions[i][0];
 	  if (current_element_type == 0) quad_count[i]=1;
       if (current_element_type != 0) {
         compute_surface_depths(interior_scales[0], interior_scales[1], interior_scales[2],
@@ -120,10 +117,13 @@ void ComputeCACQuadCount::compute_peratom()
 	  }
 	}
 	else{
-    //quad_count[i]=neighbor_weights[i][0]+QUADSCALE*neighbor_weights[i][1]+QUADSCALE2*neighbor_weights[i][2];
+		//check if neighbor weights are zero; can happen due to lost atoms/elements.
+		//set to 1 so that weight errors don't precede checks for lost atoms
+		if(neighbor_weights[i][0]==0) neighbor_weights[i][0]=1;
+		if(neighbor_weights[i][1]==0) neighbor_weights[i][1]=1;
+		if(neighbor_weights[i][2]==0) neighbor_weights[i][2]=1;
 		if(atom->outer_neigh_flag)
 		quad_count[i]=neighbor_weights[i][2];
-		//quad_count[i]=neighbor_weights[i][0]+neighbor_weights[i][1];
 		else
 		quad_count[i]=neighbor_weights[i][0]+neighbor_weights[i][1]+QUADSCALE*neighbor_weights[i][1]+QUADSCALE2*neighbor_weights[i][2];
 	}
@@ -138,7 +138,7 @@ surface quadrature location routine used to predict counts
 ------------------------------------------------------------------------- */
 
 void ComputeCACQuadCount::compute_surface_depths(double &scalex, double &scaley, double &scalez,
-	int &countx, int &county, int &countz, int flag) {
+  int &countx, int &county, int &countz, int flag) {
 	int poly = 0;
 	double unit_cell_mapped[3];
 	
@@ -150,31 +150,31 @@ void ComputeCACQuadCount::compute_surface_depths(double &scalex, double &scaley,
 	unit_cell_mapped[0] = 2 / double(current_element_scale[0]);
 	unit_cell_mapped[1] = 2 / double(current_element_scale[1]);
 	unit_cell_mapped[2] = 2 / double(current_element_scale[2]);
-	double ds_x = (current_nodal_positions[0][poly][0] - current_nodal_positions[1][poly][0])*
-		(current_nodal_positions[0][poly][0] - current_nodal_positions[1][poly][0]);
-	double ds_y = (current_nodal_positions[0][poly][1] - current_nodal_positions[1][poly][1])*
-		(current_nodal_positions[0][poly][1] - current_nodal_positions[1][poly][1]);
-	double ds_z = (current_nodal_positions[0][poly][2] - current_nodal_positions[1][poly][2])*
-		(current_nodal_positions[0][poly][2] - current_nodal_positions[1][poly][2]);
+	double ds_x = (current_nodal_positions[0][0] - current_nodal_positions[1][0])*
+		(current_nodal_positions[0][0] - current_nodal_positions[1][0]);
+	double ds_y = (current_nodal_positions[0][1] - current_nodal_positions[1][1])*
+		(current_nodal_positions[0][1] - current_nodal_positions[1][1]);
+	double ds_z = (current_nodal_positions[0][2] - current_nodal_positions[1][2])*
+		(current_nodal_positions[0][2] - current_nodal_positions[1][2]);
 	double ds_surf = 2 * rcut / sqrt(ds_x + ds_y + ds_z);
 	ds_surf = unit_cell_mapped[0] * (int)(ds_surf / unit_cell_mapped[0]) + unit_cell_mapped[0];
 
-	double dt_x = (current_nodal_positions[0][poly][0] - current_nodal_positions[3][poly][0])*
-		(current_nodal_positions[0][poly][0] - current_nodal_positions[3][poly][0]);
-	double dt_y = (current_nodal_positions[0][poly][1] - current_nodal_positions[3][poly][1])*
-		(current_nodal_positions[0][poly][1] - current_nodal_positions[3][poly][1]);
-	double dt_z = (current_nodal_positions[0][poly][2] - current_nodal_positions[3][poly][2])*
-		(current_nodal_positions[0][poly][2] - current_nodal_positions[3][poly][2]);
+	double dt_x = (current_nodal_positions[0][0] - current_nodal_positions[3][0])*
+		(current_nodal_positions[0][0] - current_nodal_positions[3][0]);
+	double dt_y = (current_nodal_positions[0][1] - current_nodal_positions[3][1])*
+		(current_nodal_positions[0][1] - current_nodal_positions[3][1]);
+	double dt_z = (current_nodal_positions[0][2] - current_nodal_positions[3][2])*
+		(current_nodal_positions[0][2] - current_nodal_positions[3][2]);
 
 	double dt_surf = 2 * rcut / sqrt(dt_x + dt_y + dt_z);
 	dt_surf = unit_cell_mapped[1] * (int)(dt_surf / unit_cell_mapped[1]) + unit_cell_mapped[1];
 
-	double dw_x = (current_nodal_positions[0][poly][0] - current_nodal_positions[4][poly][0])*
-		(current_nodal_positions[0][poly][0] - current_nodal_positions[4][poly][0]);
-	double dw_y = (current_nodal_positions[0][poly][1] - current_nodal_positions[4][poly][1])*
-		(current_nodal_positions[0][poly][1] - current_nodal_positions[3][poly][1]);
-	double dw_z = (current_nodal_positions[0][poly][2] - current_nodal_positions[4][poly][2])*
-		(current_nodal_positions[0][poly][2] - current_nodal_positions[4][poly][2]);
+	double dw_x = (current_nodal_positions[0][0] - current_nodal_positions[4][0])*
+		(current_nodal_positions[0][0] - current_nodal_positions[4][0]);
+	double dw_y = (current_nodal_positions[0][1] - current_nodal_positions[4][1])*
+		(current_nodal_positions[0][1] - current_nodal_positions[3][1]);
+	double dw_z = (current_nodal_positions[0][2] - current_nodal_positions[4][2])*
+		(current_nodal_positions[0][2] - current_nodal_positions[4][2]);
 
 	double dw_surf = 2 * rcut / sqrt(dw_x + dw_y + dw_z);
 	dw_surf = unit_cell_mapped[2] * (int)(dw_surf / unit_cell_mapped[2]) + unit_cell_mapped[2];

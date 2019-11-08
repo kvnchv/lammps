@@ -37,6 +37,8 @@ Commands :h1
    dump_cac_kinetic
    dump_cac_nodal_positions
    dump_cac_nodal_velocities
+   dump_cac_nodal_virial
+   dump_cac_nodal_forces
    dump_cac_xyz
    dump_cfg_uef
    dump_h5md
@@ -58,7 +60,7 @@ Commands :h1
    include
    info
    jump
-   kim_query
+   kim_commands
    kspace_modify
    kspace_style
    label

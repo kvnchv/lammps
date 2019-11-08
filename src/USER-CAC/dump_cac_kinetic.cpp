@@ -18,6 +18,7 @@
 #include "error.h"
 #include "memory.h"
 #include "update.h"
+#include "force.h"
 
 using namespace LAMMPS_NS;
 
@@ -68,7 +69,6 @@ DumpCAC_Kinetic::~DumpCAC_Kinetic()
 
 void DumpCAC_Kinetic::init_style()
 {
-  //check if CAC atom style is defined
   if(!atom->CAC_flag)
   error->all(FLERR, "CAC dump styles require a CAC atom style");
 
@@ -83,7 +83,6 @@ void DumpCAC_Kinetic::init_style()
   strcat(format,"\n");
   nodes_per_element = atom->nodes_per_element;
   maxpoly = atom->maxpoly;
-  //size_one = 6;
   // initialize typenames array to be backward compatible by default
   // a 32-bit int can be maximally 10 digits plus sign
 
@@ -139,8 +138,6 @@ int DumpCAC_Kinetic::modify_param(int narg, char **arg)
 /*------------------------------------------------------------------------*/
 int DumpCAC_Kinetic::count()
 {
-	//if (igroup == 0) return (poly_count[i] + 1)*nodes_per_element*atom->nlocal;
-
 	int *mask = atom->mask;
 	int nlocal = atom->nlocal;
   int *element_type= atom->element_type;
@@ -150,12 +147,18 @@ int DumpCAC_Kinetic::count()
 
   //compute number of nodes in total system
   int local_node_count=0;
-   total_node_count=0;
+  total_node_count=0;
+  int local_element_count=0;
+  total_element_count=0;
     
-    for (int i=0; i<atom->nlocal; i++){
-       local_node_count+=nodes_per_element_list[element_type[i]];
+  for (int i=0; i<atom->nlocal; i++){
+    if (mask[i] & groupbit){
+    local_node_count+=nodes_per_element_list[element_type[i]];
+    local_element_count++;
     }
-    MPI_Allreduce(&local_node_count,&total_node_count,1,MPI_INT,MPI_SUM,world);
+  }
+  MPI_Allreduce(&local_node_count,&total_node_count,1,MPI_INT,MPI_SUM,world);
+  MPI_Allreduce(&local_element_count,&total_element_count,1,MPI_INT,MPI_SUM,world);
 
 
 	for (int i = 0; i < nlocal; i++)
@@ -174,17 +177,9 @@ int DumpCAC_Kinetic::count()
 void DumpCAC_Kinetic::write_header(bigint n)
 {
   if (me == 0) {
-	  /*title="results for ufmae_cac"
-variables="x","y","z","disp1","disp2","disp3","t11","t13","ketemp"
-zone t="load step 0",n=    3200 e=     400 datapacking=point,zonetype=febric*/
-   
-	//fprintf(fp, "zone t=\"load step " BIGINT_FORMAT "\",n= " BIGINT_FORMAT
-	//" e= " BIGINT_FORMAT " datapacking=point,zonetype=febric" "\n",
-	//update->ntimestep, nodes_per_element*atom->nlocal, atom->nlocal);
 	fprintf(fp, " t= " BIGINT_FORMAT " n= " BIGINT_FORMAT
 	" e= " BIGINT_FORMAT " Q4 " "\n",
-	update->ntimestep, (bigint)total_node_count, atom->natoms);
-    
+	update->ntimestep, (bigint)total_node_count, total_element_count);
   }
 }
 
@@ -200,13 +195,13 @@ void DumpCAC_Kinetic::pack(tagint *ids)
   double ****nodal_positions = atom->nodal_positions;
   double ****nodal_velocities = atom->nodal_velocities;
   int *nodes_per_element_list = atom->nodes_per_element_list;
-  //double ****initial_nodal_positions = atom->initial_nodal_positions;
   int nlocal = atom->nlocal;
   int *poly_count = atom->poly_count;
   int *element_type = atom->element_type;
   int **node_types = atom->node_types;
   int **element_scale = atom->element_scale;
   double *mass = atom->mass;
+  double mvv2e = force->mvv2e;
   m = n = 0;
   for (int i = 0; i < nlocal; i++) {
 	  if (mask[i] & groupbit) {
@@ -217,16 +212,16 @@ void DumpCAC_Kinetic::pack(tagint *ids)
 		  buf[m++] = double(element_scale[i][1]);
 		  buf[m++] = double(element_scale[i][2]);
 
+    for (int k = 0; k < poly_count[i]; k++) {
 	  for (int j = 0; j < nodes_per_element_list[element_type[i]]; j++) {
-		  for (int k = 0; k < poly_count[i]; k++) {
 			  buf[m++] = double(j + 1);
 			  buf[m++] = double(k + 1);
 			  buf[m++] = double(node_types[i][k]);
-			  buf[m++] = mass[node_types[i][k]]*nodal_velocities[i][j][k][0]* nodal_velocities[i][j][k][0];
-			  buf[m++] = mass[node_types[i][k]] * nodal_velocities[i][j][k][1]* nodal_velocities[i][j][k][1];
-			  buf[m++] = mass[node_types[i][k]] * nodal_velocities[i][j][k][2]* nodal_velocities[i][j][k][2];
+			  buf[m++] = mvv2e * mass[node_types[i][k]] * nodal_velocities[i][k][j][0] * nodal_velocities[i][k][j][0];
+			  buf[m++] = mvv2e * mass[node_types[i][k]] * nodal_velocities[i][k][j][1] * nodal_velocities[i][k][j][1];
+			  buf[m++] = mvv2e * mass[node_types[i][k]] * nodal_velocities[i][k][j][2] * nodal_velocities[i][k][j][2];
 		  }
-		  }
+		}
 	  }
   }
 }
