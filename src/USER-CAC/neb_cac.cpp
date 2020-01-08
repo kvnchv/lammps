@@ -186,7 +186,7 @@ void NEBCAC::run()
   int ineb;
   for (ineb = 0; ineb < modify->nfix; ineb++)
     if (strcmp(modify->fix[ineb]->style,"cac/neb") == 0) break;
-  if (ineb == modify->nfix) error->all(FLERR,"cac/neb requires use of fix CAC/neb");
+  if (ineb == modify->nfix) error->all(FLERR,"cac/neb requires use of fix cac/neb");
 
   fneb = (FixNEBCAC *) modify->fix[ineb];
   if (verbose) numall =7;
@@ -438,27 +438,28 @@ void NEBCAC::readfile(char *file, int flag)
 
   double fraction = ireplica/(nreplica-1.0);
   double **x = atom->x;
-  double ****xnodes=atom->nodal_positions;
+  double ****nodal_positions=atom->nodal_positions;
   int nlocal = atom->maxpoly * atom->nodes_per_element * atom->nlocal;
 
   // loop over chunks of lines read from file
   // two versions of read_lines_from_file() for world vs universe bcast
   // count # of atom coords changed so can check for invalid atom IDs in file
 
-  int ncount = 0;
   int nread = 0;
   int index = 0;
   while (nread < nlines) {
+    int ncount = 0;
     nchunk = MIN(nlines-nread,CHUNK);
+ 
 
     if (flag == 0)
       eofflag = read_lines_from_CAC_universe(fp,nchunk,MAXLINE,MAXELEMENT,buffer);
     else
       eofflag = read_lines_from_CAC(fp,nchunk,MAXLINE,MAXELEMENT,buffer);
     if (eofflag) error->all(FLERR,"Unexpected end of neb file");
-
     buf = buffer;
     
+
 
     // loop over lines of element/nodal coords
     // tokenize the line into values
@@ -488,6 +489,9 @@ void NEBCAC::readfile(char *file, int flag)
         nodecount = 1;
         npoly = 1;
       }
+
+      printf("npoly=%d, nodecount=%d\n", npoly, nodecount);
+      
       for (j = decline - 3; j < nodecount*npoly*atom->words_per_node + decline; j++) {
         values[j] = strtok(NULL, " \t\n\r\f");
         if (values[j] == NULL)
@@ -509,36 +513,35 @@ void NEBCAC::readfile(char *file, int flag)
       if (m >= 0 && m < atom->nlocal) {
         ncount++;
         x[m][0] = x[m][1] = x[m][2] = 0;
-        for (int k = 0; k < npoly; k++){  
-          for (int p = 0; p < nodecount; p++) {          
-            index = 9 + k*nodecount*decline + p*decline;
+        for (int p = 0; p < npoly; p++){  
+          for (int k = 0; k < nodecount; k++) {          
+            index = 9 + p*nodecount*decline + k*decline;
             xx = atof(values[index]);
             yy = atof(values[index+1]);
             zz = atof(values[index+2]);
-
             if (flag == 0) {
-              delx = xx - xnodes[m][p][k][0];
-              dely = yy - xnodes[m][p][k][1];
-              delz = zz - xnodes[m][p][k][2];
+              delx = xx - nodal_positions[m][p][k][0];
+              dely = yy - nodal_positions[m][p][k][1];
+              delz = zz - nodal_positions[m][p][k][2];
               //if(delx < 0 || dely < 0 || delz < 0){
                 // printf("%f, %f, %f\n", xx, yy, zz);
                 // printf("%f, %f, %f\n", delx, dely, delz);
-                // printf("%f, %f, %f\n", xnodes[m][p][k][0], xnodes[m][p][k][1], xnodes[m][p][k][2]);
+                // printf("%f, %f, %f\n", nodal_positions[m][p][k][0], nodal_positions[m][p][k][1], nodal_positions[m][p][k][2]);
                 // printf("m=%d, k=%d, p=%d, index=%d, d=%d\n\n", m, k, p, index,decline);
               //}
               domain->minimum_image(delx,dely,delz);
-              xnodes[m][p][k][0] += fraction*delx;
-              xnodes[m][p][k][1] += fraction*dely;
-              xnodes[m][p][k][2] += fraction*delz;
+              nodal_positions[m][p][k][0] += fraction*delx;
+              nodal_positions[m][p][k][1] += fraction*dely;
+              nodal_positions[m][p][k][2] += fraction*delz;
             }
             else {
-              xnodes[m][p][k][0] = xx;
-              xnodes[m][p][k][1] = yy;
-              xnodes[m][p][k][2] = zz;
+              nodal_positions[m][p][k][0] = xx;
+              nodal_positions[m][p][k][1] = yy;
+              nodal_positions[m][p][k][2] = zz;
             }
-            x[m][0] += xnodes[m][p][k][0];
-            x[m][1] += xnodes[m][p][k][1];
-            x[m][2] += xnodes[m][p][k][2];
+            x[m][0] += nodal_positions[m][p][k][0];
+            x[m][1] += nodal_positions[m][p][k][1];
+            x[m][2] += nodal_positions[m][p][k][2];
           }
         }
         x[m][0] = x[m][0] / nodecount / npoly;
@@ -546,8 +549,8 @@ void NEBCAC::readfile(char *file, int flag)
         x[m][2] = x[m][2] / nodecount / npoly;
       }
     }
-
-    nread += nchunk;
+    printf("nread=%d, ncount=%d, nlines=%d", nread, ncount, nlines);
+    nread += ncount;
   }
 
             //   Debug block
