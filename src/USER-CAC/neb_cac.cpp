@@ -490,7 +490,6 @@ void NEBCAC::readfile(char *file, int flag)
         npoly = 1;
       }
 
-      printf("npoly=%d, nodecount=%d\n", npoly, nodecount);
       
       for (j = decline - 3; j < nodecount*npoly*atom->words_per_node + decline; j++) {
         values[j] = strtok(NULL, " \t\n\r\f");
@@ -511,7 +510,6 @@ void NEBCAC::readfile(char *file, int flag)
       tag = ATOTAGINT(values[0]);
       m = atom->map(tag);
       if (m >= 0 && m < atom->nlocal) {
-        ncount++;
         x[m][0] = x[m][1] = x[m][2] = 0;
         for (int p = 0; p < npoly; p++){  
           for (int k = 0; k < nodecount; k++) {          
@@ -523,12 +521,6 @@ void NEBCAC::readfile(char *file, int flag)
               delx = xx - nodal_positions[m][p][k][0];
               dely = yy - nodal_positions[m][p][k][1];
               delz = zz - nodal_positions[m][p][k][2];
-              //if(delx < 0 || dely < 0 || delz < 0){
-                // printf("%f, %f, %f\n", xx, yy, zz);
-                // printf("%f, %f, %f\n", delx, dely, delz);
-                // printf("%f, %f, %f\n", nodal_positions[m][p][k][0], nodal_positions[m][p][k][1], nodal_positions[m][p][k][2]);
-                // printf("m=%d, k=%d, p=%d, index=%d, d=%d\n\n", m, k, p, index,decline);
-              //}
               domain->minimum_image(delx,dely,delz);
               nodal_positions[m][p][k][0] += fraction*delx;
               nodal_positions[m][p][k][1] += fraction*dely;
@@ -542,6 +534,7 @@ void NEBCAC::readfile(char *file, int flag)
             x[m][0] += nodal_positions[m][p][k][0];
             x[m][1] += nodal_positions[m][p][k][1];
             x[m][2] += nodal_positions[m][p][k][2];
+            ncount++;
           }
         }
         x[m][0] = x[m][0] / nodecount / npoly;
@@ -549,14 +542,10 @@ void NEBCAC::readfile(char *file, int flag)
         x[m][2] = x[m][2] / nodecount / npoly;
       }
     }
-    printf("nread=%d, ncount=%d, nlines=%d", nread, ncount, nlines);
     nread += ncount;
+
   }
 
-            //   Debug block
-            // volatile int qq = 0;
-            // printf("set var qq = 1");
-            // while (qq == 0){}
   // check that all IDs in file were found by a proc
 
   if (flag == 0) {
