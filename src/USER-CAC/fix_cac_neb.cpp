@@ -392,8 +392,8 @@ void FixNEBCAC::min_post_force(int vflag)
     for (int i = 0; i < nlocal; i++) {
       if (mask[i] & groupbit) {
         nodes_per_element = nodes_count_list[element_type[i]];
-        for (int p = 0; p < nodes_per_element; p++) {
-          for (int k = 0; k < poly_count[i]; k++){
+        for (int p = 0; p < poly_count[i]; p++){
+          for (int k = 0; k < nodes_per_element; k++) {
             delxp = nodal_positions[i][p][k][0] - xprevn[i][p][k][0];
             delyp = nodal_positions[i][p][k][1] - xprevn[i][p][k][1];
             delzp = nodal_positions[i][p][k][2] - xprevn[i][p][k][2];
@@ -426,8 +426,8 @@ void FixNEBCAC::min_post_force(int vflag)
     for (int i = 0; i < nlocal; i++) {
       if (mask[i] & groupbit) {
         nodes_per_element = nodes_count_list[element_type[i]];
-        for (int p = 0; p < nodes_per_element; p++) {
-          for (int k = 0; k < poly_count[i]; k++){
+        for (int p = 0; p < poly_count[i]; p++){
+          for (int k = 0; k < nodes_per_element; k++) {
             delxn = xnextn[i][p][k][0] - nodal_positions[i][p][k][0];
             delyn = xnextn[i][p][k][1] - nodal_positions[i][p][k][1];
             delzn = xnextn[i][p][k][2] - nodal_positions[i][p][k][2];
@@ -473,8 +473,8 @@ void FixNEBCAC::min_post_force(int vflag)
     for (int i = 0; i < nlocal; i++) {
       if (mask[i] & groupbit) {
         nodes_per_element = nodes_count_list[element_type[i]];
-        for (int p = 0; p < nodes_per_element; p++) {
-          for (int k = 0; k < poly_count[i]; k++){
+        for (int p = 0; p < poly_count[i]; p++){
+          for (int k = 0; k < nodes_per_element; k++) {
             delxp = nodal_positions[i][p][k][0] - xprevn[i][p][k][0];
             delyp = nodal_positions[i][p][k][1] - xprevn[i][p][k][1];
             delzp = nodal_positions[i][p][k][2] - xprevn[i][p][k][2];
@@ -564,8 +564,8 @@ void FixNEBCAC::min_post_force(int vflag)
     for (int i = 0; i < nlocal; i++) {
       if (mask[i] & groupbit) {
         nodes_per_element = nodes_count_list[element_type[i]];
-        for (int p = 0; p < nodes_per_element; p++) {
-          for (int k = 0; k < poly_count[i]; k++){
+        for (int p = 0; p < poly_count[i]; p++){
+          for (int k = 0; k < nodes_per_element; k++) {
             tangentnode[i][p][k][0] *= tleninvnode;
             tangentnode[i][p][k][1] *= tleninvnode;
             tangentnode[i][p][k][2] *= tleninvnode;
@@ -598,8 +598,8 @@ void FixNEBCAC::min_post_force(int vflag)
       for (int i = 0; i < nlocal; i++) { 
         nodes_per_element = nodes_count_list[element_type[i]];
         if (mask[i] & groupbit) {
-          for (int p = 0; p < nodes_per_element; p++) {
-            for (int k = 0; k < poly_count[i]; k++){
+          for (int p = 0; p < poly_count[i]; p++){
+            for (int k = 0; k < nodes_per_element; k++) {
                 nodal_forces[i][p][k][0] += prefactornode *tangentnode[i][p][k][0];
                 nodal_forces[i][p][k][1] += prefactornode *tangentnode[i][p][k][1];
                 nodal_forces[i][p][k][2] += prefactornode *tangentnode[i][p][k][2];
@@ -622,8 +622,8 @@ void FixNEBCAC::min_post_force(int vflag)
       for (int i = 0; i < nlocal; i++) { 
         nodes_per_element = nodes_count_list[element_type[i]];
         if (mask[i] & groupbit) {
-          for (int p = 0; p < nodes_per_element; p++) {
-            for (int k = 0; k < poly_count[i]; k++){
+          for (int p = 0; p < poly_count[i]; p++){
+            for (int k = 0; k < nodes_per_element; k++) {
                 nodal_forces[i][p][k][0] += prefactornode *tangentnode[i][p][k][0];
                 nodal_forces[i][p][k][1] += prefactornode *tangentnode[i][p][k][1];
                 nodal_forces[i][p][k][2] += prefactornode *tangentnode[i][p][k][2];
@@ -647,8 +647,8 @@ void FixNEBCAC::min_post_force(int vflag)
       for (int i = 0; i < nlocal; i++) { 
         nodes_per_element = nodes_count_list[element_type[i]];
         if (mask[i] & groupbit) {
-          for (int p = 0; p < nodes_per_element; p++) {
-            for (int k = 0; k < poly_count[i]; k++){
+          for (int p = 0; p < poly_count[i]; p++){
+            for (int k = 0; k < nodes_per_element; k++) {
                 nodal_forces[i][p][k][0] += prefactornode *tangentnode[i][p][k][0];
                 nodal_forces[i][p][k][1] += prefactornode *tangentnode[i][p][k][1];
                 nodal_forces[i][p][k][2] += prefactornode *tangentnode[i][p][k][2];
@@ -705,8 +705,8 @@ void FixNEBCAC::min_post_force(int vflag)
   for (int i = 0; i < nlocal; i++) {
     if (mask[i] & groupbit) {
       nodes_per_element = nodes_count_list[element_type[i]];
-      for (int p = 0; p < nodes_per_element; p++) {
-        for (int k = 0; k < poly_count[i]; k++){
+      for (int p = 0; p < poly_count[i]; p++){
+        for (int k = 0; k < nodes_per_element; k++) {
           dotnode += nodal_forces[i][p][k][0] * tangentnode[i][p][k][0]
             + nodal_forces[i][p][k][1] * tangentnode[i][p][k][1]
             + nodal_forces[i][p][k][2] * tangentnode[i][p][k][2];
@@ -739,8 +739,8 @@ void FixNEBCAC::min_post_force(int vflag)
       for (int i = 0; i < nlocal; i++) {
         if (mask[i] & groupbit) {
           nodes_per_element = nodes_count_list[element_type[i]];
-          for (int p = 0; p < nodes_per_element; p++) {
-            for (int k = 0; k < poly_count[i]; k++){
+          for (int p = 0; p < poly_count[i]; p++){
+            for (int k = 0; k < nodes_per_element; k++) {
               nodal_forces[i][p][k][0] = 0;
               nodal_forces[i][p][k][1] = 0;
               nodal_forces[i][p][k][2] = 0;
@@ -756,8 +756,8 @@ void FixNEBCAC::min_post_force(int vflag)
   for (int i = 0; i < nlocal; i++) {
     if (mask[i] & groupbit) {
       nodes_per_element = nodes_count_list[element_type[i]];
-      for (int p = 0; p < nodes_per_element; p++) {
-        for (int k = 0; k < poly_count[i]; k++){
+      for (int p = 0; p < poly_count[i]; p++){
+        for (int k = 0; k < nodes_per_element; k++) {
           nodal_forces[i][p][k][0] += prefactornode*tangentnode[i][p][k][0]
             + AngularContrN*(springFnode[i][p][k][0] - dotSpringTangentN*tangentnode[i][p][k][0]);
           nodal_forces[i][p][k][1] += prefactornode*tangentnode[i][p][k][1]
