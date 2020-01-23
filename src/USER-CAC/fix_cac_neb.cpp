@@ -32,6 +32,7 @@
 #include "memory.h"
 #include "error.h"
 #include "force.h"
+#include "min.h"
 #include "math_const.h"
 
 using namespace LAMMPS_NS;
@@ -51,7 +52,8 @@ FixNEBCAC::FixNEBCAC(LAMMPS *lmp, int narg, char **arg) :
   fsend(NULL), frecv(NULL), tagsend(NULL), tagrecv(NULL),
   xsendall(NULL), xrecvall(NULL), fsendall(NULL), frecvall(NULL),
   tagsendall(NULL), tagrecvall(NULL), counts(NULL),
-  displacements(NULL), nlenallnode(NULL), xprevnode(NULL), xnextnode(NULL),
+  displacements(NULL), nlenallnode(NULL), xprevpack(NULL), xnextpack(NULL), fnextpack(NULL),
+  xprevnode(NULL), xnextnode(NULL),
   fnextnode(NULL), springFnode(NULL), tangentnode(NULL), xsendnode(NULL), xrecvnode(NULL),
   fsendnode(NULL), frecvnode(NULL), tagsendnode(NULL), tagrecvnode(NULL),
   xsendallnode(NULL), xrecvallnode(NULL), fsendallnode(NULL), frecvallnode(NULL),
@@ -269,7 +271,6 @@ void FixNEBCAC::init()
   ntotal = atom->natoms;
 
   if (atom->nmax > maxlocal) reallocate();
-
   //TODO: MULTI_PROC mode requires changes here.
   if (MULTI_PROC && counts == NULL) {
     memory->create(xsendall,ntotal,3,"neb_CAC:xsendall");
@@ -793,7 +794,6 @@ void FixNEBCAC::inter_replica_comm()
   double **f = atom->f;
   double ****nodal_positions = atom->nodal_positions;
   double ****nodal_forces = atom->nodal_forces;
-
   int *element_type = atom->element_type;
   int *poly_count = atom->poly_count;
   int **node_types = atom->node_types;
@@ -804,7 +804,10 @@ void FixNEBCAC::inter_replica_comm()
   int *mask = atom->mask;
   int nlocal = atom->nlocal;
   int nlocalnode = atom->maxpoly*atom->nodes_per_element * atom->nlocal;
-
+  // nodal positions and forces should already be packed
+  nvec = atom->dense_count;
+  double *xpack = atom->min_x;
+  double *fpack = atom->min_f;
 
   // -----------------------------------------------------
   // 3 cases: two for single proc per replica
@@ -818,22 +821,47 @@ void FixNEBCAC::inter_replica_comm()
   if (cmode == SINGLE_PROC_DIRECT) {
     // node info send/recv
     if (ireplica > 0)
-      MPI_Irecv(xprevnode[0][0][0], 3*nlocalnode, MPI_DOUBLE, procprev, 1, uworld, &requestn);
+      MPI_Irecv(xprevpack, nvec, MPI_DOUBLE, procprev, 1, uworld, &requestn);
     if (ireplica < nreplica-1)
-      MPI_Send(nodal_positions[0][0][0], 3*nlocalnode, MPI_DOUBLE, procnext, 1, uworld);
+      MPI_Send(xpack, nvec, MPI_DOUBLE, procnext, 1, uworld);
     if (ireplica > 0) MPI_Wait(&requestn,MPI_STATUS_IGNORE);
-    if (ireplica < nreplica-1)
-      MPI_Irecv(xnextnode[0][0][0],3*nlocalnode,MPI_DOUBLE,procnext,1,uworld,&requestn);
-    if (ireplica > 0)
-      MPI_Send(nodal_positions[0][0][0],3*nlocalnode,MPI_DOUBLE,procprev,1,uworld);
-    if (ireplica < nreplica-1) MPI_Wait(&requestn,MPI_STATUS_IGNORE);
 
     if (ireplica < nreplica-1)
-      MPI_Irecv(fnextnode[0][0][0],3*nlocalnode,MPI_DOUBLE,procnext,1,uworld,&requestn);
+      MPI_Irecv(xnextpack,nvec,MPI_DOUBLE,procnext,1,uworld,&request);
     if (ireplica > 0)
-      MPI_Send(nodal_forces[0][0][0],3*nlocalnode,MPI_DOUBLE,procprev,1,uworld);
-    if (ireplica < nreplica-1) MPI_Wait(&requestn,MPI_STATUS_IGNORE);
+      MPI_Send(xpack,nvec,MPI_DOUBLE,procprev,1,uworld);
+    if (ireplica < nreplica-1) MPI_Wait(&request,MPI_STATUS_IGNORE);
 
+    if (ireplica < nreplica-1)
+      MPI_Irecv(fnextpack,nvec,MPI_DOUBLE,procnext,1,uworld,&request);
+    if (ireplica > 0)
+      MPI_Send(fpack, nvec,MPI_DOUBLE,procprev,1,uworld);
+    if (ireplica < nreplica-1) MPI_Wait(&request,MPI_STATUS_IGNORE);
+
+    // unpack received arrays into their 4d representation, me==0 already has nodal_x, nodal_f
+    //copy contents to these vectors
+    int dense_count_xp=0;
+    int dense_count_xn=0;
+    int dense_count_fn=0;
+    for(int element_counter=0; element_counter < atom->nlocal; element_counter++){
+      for(int poly_counter=0; poly_counter < poly_count[element_counter]; poly_counter++){
+        for(int node_counter=0; node_counter < nodes_count_list[element_type[element_counter]]; node_counter++){
+          if (ireplica > 0) {
+            xprevnode[element_counter][poly_counter][node_counter][0] = xprevpack[dense_count_xp++];
+            xprevnode[element_counter][poly_counter][node_counter][1] = xprevpack[dense_count_xp++];
+            xprevnode[element_counter][poly_counter][node_counter][2] = xprevpack[dense_count_xp++];
+          }
+          if (ireplica < nreplica -1) {
+            xnextnode[element_counter][poly_counter][node_counter][0] = xnextpack[dense_count_xn++];
+            xnextnode[element_counter][poly_counter][node_counter][1] = xnextpack[dense_count_xn++];
+            xnextnode[element_counter][poly_counter][node_counter][2] = xnextpack[dense_count_xn++];
+            fnextnode[element_counter][poly_counter][node_counter][0] = fnextpack[dense_count_fn++];
+            fnextnode[element_counter][poly_counter][node_counter][1] = fnextpack[dense_count_fn++];
+            fnextnode[element_counter][poly_counter][node_counter][2] = fnextpack[dense_count_fn++];    
+          } 
+        }
+      }
+    } 
     return;
   }
 
@@ -1007,7 +1035,7 @@ void FixNEBCAC::inter_replica_comm()
 void FixNEBCAC::reallocate()
 {
   maxlocal = atom->nmax;
-
+  nvec = atom->dense_count;
   // memory->destroy(xprev);
   // memory->destroy(xnext);
   // memory->destroy(tangent);
@@ -1026,12 +1054,19 @@ void FixNEBCAC::reallocate()
   memory->destroy(tangentnode);
   memory->destroy(fnextnode);
   memory->destroy(springFnode);
+  memory->destroy(xprevpack);
+  memory->destroy(xnextpack);
+  memory->destroy(fnextpack);
+
 
   memory->create(xprevnode, maxlocal, atom->nodes_per_element, atom->maxpoly,3, "neb_CAC:xprevnode");
   memory->create(xnextnode, maxlocal, atom->nodes_per_element, atom->maxpoly,3, "neb_CAC:xnextnode");
   memory->create(fnextnode, maxlocal, atom->nodes_per_element, atom->maxpoly,3, "neb_CAC:fnextnode");
   memory->create(tangentnode, maxlocal, atom->nodes_per_element, atom->maxpoly,3, "neb_CAC:tangentnode");
   memory->create(springFnode, maxlocal, atom->nodes_per_element, atom->maxpoly,3, "neb_CAC:springFnode");
+  memory->create(xprevpack, nvec, "neb_CAC:xprevpack");
+  memory->create(xnextpack, nvec, "neb_CAC:xnextpack");
+  memory->create(fnextpack, nvec, "neb_CAC:fnextpack");
 
 
   if (cmode != SINGLE_PROC_DIRECT) {

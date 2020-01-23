@@ -55,6 +55,7 @@ class FixNEBCAC : public Fix {
   int nebatoms;
   int ntotal;                  // total # of atoms, NEB or not
   int maxlocal;                // size of xprev,xnext,tangent arrays
+  int nvec;                    // size of dense arrays
   double *nlenall;
   double **xprev,**xnext,**fnext,**springF;
   double **tangent;
@@ -73,17 +74,17 @@ class FixNEBCAC : public Fix {
   int ntotalnode;                  // total # of atoms, NEB or not
   int maxlocalnode;                // size of xprev,xnext,tangent arrays
   double *nlenallnode;
+  double *xprevpack, *xnextpack, *fnextpack;
   double ****xprevnode,****xnextnode,****fnextnode,****springFnode;
   double ****tangentnode;
   double ****xsendnode,****xrecvnode;      // coords to send/recv to/from other replica
   double ****fsendnode,****frecvnode;      // coords to send/recv to/from other replica
   tagint *tagsendnode,*tagrecvnode;    // ditto for atom IDs
 
-                                 // info gathered from all procs in my replica
+  // info gathered from all procs in my replica
   double ****xsendallnode,****xrecvallnode;    // coords to send/recv to/from other replica
   double ****fsendallnode,****frecvallnode;    // force to send/recv to/from other replica
   tagint *tagsendallnode,*tagrecvallnode;  // ditto for atom IDs
-
   int *counts,*displacements;   // used for MPI_Gather
 
   void inter_replica_comm();
