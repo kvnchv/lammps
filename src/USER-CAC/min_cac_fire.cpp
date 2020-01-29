@@ -103,6 +103,10 @@ int CACMinFire::iterate(int maxiter)
 
   alpha_final = 0.0;
 
+  nvec=atom->dense_count; //needed for setup step so nvec isn't zero
+  if (nvec) xvec = atom->min_x;
+  if (nvec) fvec = atom->min_f;
+
   for (int iter = 0; iter < maxiter; iter++) {
 
     if (timer->check_timeout(niter))
@@ -307,7 +311,7 @@ int CACMinFire::iterate(int maxiter)
 ------------------------------------------------------------------------- */
 
 void CACMinFire::copy_vectors(){
-int *npoly = atom->poly_count;
+  int *npoly = atom->poly_count;
   int *nodes_per_element_list = atom->nodes_per_element_list;
   int *element_type = atom->element_type;
   double ****nodal_positions = atom->nodal_positions;

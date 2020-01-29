@@ -18,6 +18,7 @@
 #include <cstring>
 #include <cmath>
 #include "comm_cac.h"
+#include "universe.h"
 #include "comm_brick.h"
 #include "atom.h"
 #include "atom_vec.h"

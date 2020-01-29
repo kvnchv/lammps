@@ -80,6 +80,7 @@ class Comm : protected Pointers {
   virtual void reverse_comm() = 0;               // reverse comm of forces
   virtual void exchange() = 0;                   // move atoms to new procs
   virtual void borders() = 0;                    // setup list of atoms to comm
+  
 
   // forward/reverse comm from a Pair, Fix, Compute, Dump
 

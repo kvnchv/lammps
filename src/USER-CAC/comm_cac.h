@@ -41,7 +41,7 @@ class CommCAC : public CommTiled {
 
   virtual void coord2proc_setup();
   virtual int coord2proc(double *, int &, int &, int &);
-
+  
   bigint memory_usage();
 
  private:
@@ -208,6 +208,7 @@ class CommCAC : public CommTiled {
   void grow_swap_recv(int, int, int);
   void deallocate_swap(int);           // deallocate swap arrays
   void pair_comm_setup(class Pair *);
+
 
 };
 
