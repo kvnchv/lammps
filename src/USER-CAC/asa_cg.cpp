@@ -148,7 +148,7 @@ int asa_cg /*  return:
     pert_hi = asaParm->pert_hi ;
     if(objpoint!=NULL){
     Com.user = objpoint->Objective ;
-	(objpoint->Objective)->n = n ;
+  (objpoint->Objective)->n = n ;
     }
     Com.tau1 = asaParm->tau1 ;
     Com.tau2 = asaParm->tau2 ;
@@ -3010,7 +3010,7 @@ Line:
     int i ;
     double alpha, *d, *g, *gtemp, *x, *xtemp ;
     asacg_parm *Parm ;
-	asa_objective *user ;
+  asa_objective *user ;
     Parm = Com->cgParm ;
     n = Com->n ;
     x = Com->x ;
@@ -6104,7 +6104,7 @@ void asa_default
     Parm->nshrink = (int) 10 ;
 
     /* maximum number of secant iterations in line search is nline */
-    Parm->nline = (int) 50 ;
+    Parm->nline = (int) 5000 ;
 
     /* conjugate gradient method restarts after (n*restart_fac) iterations */
     Parm->restart_fac = 6.0 ;
