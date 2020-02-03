@@ -70,7 +70,11 @@ void DumpCACInitialNodes::init_style()
 {
   //check if CAC atom style is defined
   if(!atom->CAC_flag)
-  error->all(FLERR, "CAC dump styles require a CAC atom style"); 
+  error->all(FLERR, "CAC dump styles require a CAC atom style");
+
+  //check if sorting was used
+  if(sort_flag)
+  error->all(FLERR, "CAC dump styles cannot currently be sorted");
 
   delete [] format;
   char *str;
@@ -151,7 +155,7 @@ int DumpCACInitialNodes::count()
   total_node_count=0;
   int local_element_count=0;
   total_element_count=0;
-    
+
   for (int i=0; i<atom->nlocal; i++){
     if (mask[i] & groupbit){
     local_node_count+=nodes_per_element_list[element_type[i]];
@@ -272,8 +276,8 @@ void DumpCACInitialNodes::write_lines(int n, double *mybuf)
   int m = 0;
   for (int i = 0; i < n; i++) {
     fprintf(fp,format,
-            typenames[static_cast<int> (mybuf[m+1])],
-            mybuf[m+2],mybuf[m+3],mybuf[m+4]);
+      typenames[static_cast<int> (mybuf[m+1])],
+      mybuf[m+2],mybuf[m+3],mybuf[m+4]);
     m += size_one;
   }
 
