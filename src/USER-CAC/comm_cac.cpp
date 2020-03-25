@@ -25,6 +25,7 @@
 #include "domain.h"
 #include "force.h"
 #include "pair.h"
+#include "npair.h"
 #include "neighbor.h"
 #include "modify.h"
 #include "fix.h"
@@ -62,7 +63,6 @@ CommCAC::CommCAC(LAMMPS *lmp) : CommTiled(lmp)
   maxall=0;
   local_neboxes=0;
   nforeign_eboxes=0;
-  reset_array_flag=0;
   foreign_eprocs=NULL;
   foreign_image=NULL;
   foreign_swaps=NULL;
@@ -90,7 +90,6 @@ CommCAC::CommCAC(LAMMPS *lmp, Comm *oldcomm) : CommTiled(lmp, oldcomm)
   maxall=0;
   local_neboxes=0;
   nforeign_eboxes=0;
-  reset_array_flag=0;
   foreign_eprocs=NULL;
   foreign_image=NULL;
   foreign_swaps=NULL;
@@ -1603,18 +1602,15 @@ void CommCAC::overlap_element_comm(int iswap){
       if (sendself[iswap]) {
 
         for(int selfcount=nsendproc[iswap]-sendself[iswap]; selfcount<nsendproc[iswap]; selfcount++){
-          int self_accumulation=0;
           for (int sendcounter = 0; sendcounter < overlap_sendnum[iswap][selfcount]; sendcounter++) {
 
 
-          if (self_accumulation+overlap_sendsize[iswap][selfcount] > maxsend) grow_send(self_accumulation+overlap_sendsize[iswap][selfcount],1);
+          if (overlap_sendsize[iswap][selfcount] > maxsend) grow_send(overlap_sendsize[iswap][selfcount],1);
           overlap_sendsize[iswap][selfcount] += pack_eboxes(1,&overlap_sendlist[iswap][selfcount][sendcounter],
-                                &buf_send[sendsize[iswap][selfcount]],pbc_flag[iswap][selfcount],pbc[iswap][selfcount],iswap);
+                                &buf_send[overlap_sendsize[iswap][selfcount]],pbc_flag[iswap][selfcount],pbc[iswap][selfcount],iswap);
 
 
           }
-          //compute offsets in buffer index for each proc to send to; i.e. there is one buffer for all sends
-          self_accumulation+=overlap_sendsize[iswap][m];
           unpack_eboxes(overlap_recvnum[iswap][selfcount],overlap_firstrecv[iswap][selfcount],
             buf_send);
         }
@@ -1640,9 +1636,6 @@ void CommCAC::borders()
   int max_sendaccumulation=0;
   int max_recvaccumulation=0;
   AtomVec *avec = atom->avec;
-
-  //flag indicating whether to zero out arrays for other comms routines
-  reset_array_flag=1;
 
   // send/recv max one = max # of atoms in single send/recv for any swap
   // send/recv max all = max # of atoms in all sends/recvs within any swap
@@ -1905,18 +1898,11 @@ void CommCAC::borders()
       if (sendself[iswap]) {
 
         for(int selfcount=nsendproc[iswap]-sendself[iswap]; selfcount<nsendproc[iswap]; selfcount++){
-          int self_accumulation=0;
           for (int sendcounter = 0; sendcounter < sendnum[iswap][selfcount]; sendcounter++) {
-
-
-          if (self_accumulation+sendsize[iswap][selfcount] > maxsend) grow_send(self_accumulation+sendsize[iswap][selfcount],1);
-          sendsize[iswap][selfcount] += avec->pack_border(1,&sendlist[iswap][selfcount][sendcounter],
-            &buf_send[sendsize[iswap][selfcount]],pbc_flag[iswap][selfcount],pbc[iswap][selfcount]);
-
-
-          }
-          //compute offsets in buffer index for each proc to send to; i.e. there is one buffer for all sends
-          self_accumulation+=sendsize[iswap][m];
+            if (sendsize[iswap][selfcount] > maxsend) grow_send(sendsize[iswap][selfcount],1);
+            sendsize[iswap][selfcount] += avec->pack_border(1,&sendlist[iswap][selfcount][sendcounter],
+              &buf_send[sendsize[iswap][selfcount]],pbc_flag[iswap][selfcount],pbc[iswap][selfcount]);
+            }
           avec->unpack_border(recvnum[iswap][selfcount],firstrecv[iswap][selfcount],
             buf_send);
         }
@@ -2023,56 +2009,7 @@ void CommCAC::borders()
 
 void CommCAC::forward_comm_pair(Pair *pair)
 {
-  int i,irecv,n,nsend,nrecv;
-
-  int iswap = 0;
-  nsend = nsendproc[iswap] - sendself[iswap];
-  nrecv = nrecvproc[iswap] - sendself[iswap];
-
-  //zero out size and offset arrays
-  if(reset_array_flag) pair_comm_setup(pair);
-
-  if(!reset_array_flag){
-    if (recvother[iswap]) {
-      for (i = 0; i < nrecv; i++)
-        MPI_Irecv(&buf_recv[pair_recvoffset[iswap][i]],pair_recvsize[iswap][i],
-          MPI_DOUBLE,recvproc[iswap][i],12,world,&requests[i]);
-    }
-
-    if (sendother[iswap]) {
-      for (i = 0; i < nsend; i++) {
-        n = pair->pack_forward_comm(sendnum[iswap][i],sendlist[iswap][i],
-          buf_send,pbc_flag[iswap][i],pbc[iswap][i]);
-        MPI_Send(buf_send,n,MPI_DOUBLE,sendproc[iswap][i],12,world);
-      }
-    }
-
-    if (sendself[iswap]) {
-        for(int selfcount=nsendproc[iswap]-sendself[iswap]; selfcount<nsendproc[iswap]; selfcount++){
-        pair->pack_forward_comm(sendnum[iswap][selfcount],sendlist[iswap][selfcount],
-          buf_send,pbc_flag[iswap][selfcount],pbc[iswap][selfcount]);
-        pair->unpack_forward_comm(recvnum[iswap][selfcount],firstrecv[iswap][selfcount],
-          buf_send);
-        }
-    }
-  }
-    if (recvother[iswap]) {
-      for (i = 0; i < nrecv; i++) {
-        MPI_Waitany(nrecv,requests,&irecv,MPI_STATUS_IGNORE);
-        pair->unpack_forward_comm(recvnum[iswap][irecv],firstrecv[iswap][irecv],
-          &buf_recv[pair_recvoffset[iswap][irecv]]);
-      }
-    }
-   reset_array_flag=0;
-}
-
-/* ----------------------------------------------------------------------
-   forward communication invoked by a Pair
-------------------------------------------------------------------------- */
-
-void CommCAC::pair_comm_setup(Pair *pair)
-{
-  int i,n, m, nsend,nrecv;
+  int i, irecv, n, m, nsend, nrecv;
   AtomVec *avec = atom->avec;
   double **x = atom->x;
 
@@ -2094,83 +2031,297 @@ void CommCAC::pair_comm_setup(Pair *pair)
   nsend = nsendproc[iswap] - sendself[iswap];
   nrecv = nrecvproc[iswap] - sendself[iswap];
   for (m = 0; m < nsendproc[iswap]; m++) {
-    pair_sendsize[iswap][m]=0;
-    pair_sendoffset[iswap][m]=0;
+    other_sendsize[iswap][m]=0;
+    other_sendoffset[iswap][m]=0;
   }
 
   for (m = 0; m < nrecvproc[iswap]; m++) {
-    pair_recvsize[iswap][m]=0;
-    pair_recvoffset[iswap][m]=0;
+    other_recvsize[iswap][m]=0;
+    other_recvoffset[iswap][m]=0;
   }
 
   //compute buffer sizes for each of the nsend communications for this task
-     int send_accumulation=0;
+  int send_accumulation=0;
 
-     if (sendother[iswap]) {
-       for (m = 0; m < nsend; m++) {
-         pair_sendoffset[iswap][m]=send_accumulation;
-           for (int sendcounter = 0; sendcounter < sendnum[iswap][m]; sendcounter++) {
-           if (send_accumulation+pair_sendsize[iswap][m] > maxsend) grow_send(send_accumulation+pair_sendsize[iswap][m],1);
-           pair_sendsize[iswap][m] += pair->pack_forward_comm(1,&sendlist[iswap][m][sendcounter],
-             &buf_send[pair_sendoffset[iswap][m]+pair_sendsize[iswap][m]],pbc_flag[iswap][m],pbc[iswap][m]);
-           }
-          //compute offsets in buffer index for each proc to send to; i.e. there is one buffer for all sends
-          send_accumulation+=pair_sendsize[iswap][m];
+  if (sendother[iswap]) {
+    for (m = 0; m < nsend; m++) {
+      other_sendoffset[iswap][m]=send_accumulation;
+      for (int sendcounter = 0; sendcounter < sendnum[iswap][m]; sendcounter++) {
+        if (send_accumulation+other_sendsize[iswap][m] > maxsend) grow_send(send_accumulation+other_sendsize[iswap][m],1);
+          other_sendsize[iswap][m] += pair->pack_forward_comm(1,&sendlist[iswap][m][sendcounter],
+            &buf_send[other_sendoffset[iswap][m]+other_sendsize[iswap][m]],pbc_flag[iswap][m],pbc[iswap][m]);
         }
-      }
+      //compute offsets in buffer index for each proc to send to; i.e. there is one buffer for all sends
+      send_accumulation+=other_sendsize[iswap][m];
+    }
+  }
       //receive buffer sizes
 
-      if (recvother[iswap]) {
-        for (m = 0; m < nrecv; m++)
-          MPI_Irecv(&pair_recvsize[iswap][m],
-            1, MPI_INT,recvproc[iswap][m],10,world,&requests[m]);
-      }
-      //send buffer sizes to recv procs
-     if (sendother[iswap]) {
-        for (m = 0; m < nsend; m++) {
-          MPI_Send(&pair_sendsize[iswap][m],1,
-          MPI_INT,sendproc[iswap][m],10,world);
+  if (recvother[iswap]) {
+    for (m = 0; m < nrecv; m++)
+      MPI_Irecv(&other_recvsize[iswap][m],
+        1, MPI_INT,recvproc[iswap][m],10,world,&requests[m]);
+    }
+  //send buffer sizes to recv procs
+  if (sendother[iswap]) {
+    for (m = 0; m < nsend; m++) {
+      MPI_Send(&other_sendsize[iswap][m],1,
+        MPI_INT,sendproc[iswap][m],10,world);
+    }
+  }
+  //wait for sizes to be received and resize recv buffer accordingly
+  int total_recvsize=0;
+  if (recvother[iswap]) {
+    MPI_Waitall(nrecv,requests,MPI_STATUS_IGNORE);
+    for (m = 0; m < nrecv; m++){
+      other_recvoffset[iswap][m]=total_recvsize;
+      total_recvsize+=other_recvsize[iswap][m];
+    }
+    if (total_recvsize > maxrecv) grow_recv(total_recvsize);
+  }
+  if (recvother[iswap]) {
+    for (m = 0; m < nrecv; m++)
+      MPI_Irecv(&buf_recv[other_recvoffset[iswap][m]],
+        other_recvsize[iswap][m],
+        MPI_DOUBLE,recvproc[iswap][m],11,world,&requests[m]);
+  }
+  if (sendother[iswap]) {
+    for (m = 0; m < nsend; m++) {
+      MPI_Send(&buf_send[other_sendoffset[iswap][m]],other_sendsize[iswap][m],
+      MPI_DOUBLE,sendproc[iswap][m],11,world);
+    }
+  }
+  if (sendself[iswap]) {
+    for(int selfcount=nsendproc[iswap]-sendself[iswap]; selfcount<nsendproc[iswap]; selfcount++){
+        for (int sendcounter = 0; sendcounter < sendnum[iswap][selfcount]; sendcounter++) {
+          if (other_sendsize[iswap][selfcount] > maxsend) grow_send(other_sendsize[iswap][selfcount],1);
+          other_sendsize[iswap][selfcount] += pair->pack_forward_comm(1,&sendlist[iswap][selfcount][sendcounter],
+            &buf_send[other_sendsize[iswap][selfcount]],pbc_flag[iswap][selfcount],pbc[iswap][selfcount]);
         }
-      }
-      //wait for sizes to be received and resize recv buffer accordingly
-      int total_recvsize=0;
-      if (recvother[iswap]) {
-        MPI_Waitall(nrecv,requests,MPI_STATUS_IGNORE);
-        for (m = 0; m < nrecv; m++){
-          pair_recvoffset[iswap][m]=total_recvsize;
-          total_recvsize+=pair_recvsize[iswap][m];
+        pair->unpack_forward_comm(recvnum[iswap][selfcount],firstrecv[iswap][selfcount],buf_send);
+    }
+  }
+  if (recvother[iswap]) {
+    for (i = 0; i < nrecv; i++) {
+      MPI_Waitany(nrecv,requests,&irecv,MPI_STATUS_IGNORE);
+      pair->unpack_forward_comm(recvnum[iswap][irecv],firstrecv[iswap][irecv],
+        &buf_recv[other_recvoffset[iswap][irecv]]);
+    }
+  }
+}
 
+/* ----------------------------------------------------------------------
+   forward communication invoked by a Fix
+------------------------------------------------------------------------- */
+
+void CommCAC::forward_comm_fix(Fix *fix ,int size)
+{
+  int i, irecv, n, m, nsend, nrecv;
+  AtomVec *avec = atom->avec;
+  double **x = atom->x;
+
+  // exchange data with another set of procs in each swap
+  // post recvs from all procs except self
+  // send data to all procs except self
+  // copy data to self if sendself is set
+  // wait on all procs except self and unpack received data
+  // if comm_x_only set, exchange or copy directly to x, don't unpack
+  //send first set of ghosts
+  int iswap = 0;
+
+  //check if buffer is sized large enough
+  int bufextra_old = bufextra;
+  maxexchange = maxexchange_atom + maxexchange_fix;
+  bufextra = maxexchange + BUFEXTRA;
+  if (bufextra > bufextra_old)
+    memory->grow(buf_send,maxsend+bufextra,"comm:buf_send");
+  nsend = nsendproc[iswap] - sendself[iswap];
+  nrecv = nrecvproc[iswap] - sendself[iswap];
+  for (m = 0; m < nsendproc[iswap]; m++) {
+    other_sendsize[iswap][m]=0;
+    other_sendoffset[iswap][m]=0;
+  }
+
+  for (m = 0; m < nrecvproc[iswap]; m++) {
+    other_recvsize[iswap][m]=0;
+    other_recvoffset[iswap][m]=0;
+  }
+
+  //compute buffer sizes for each of the nsend communications for this task
+  int send_accumulation=0;
+
+  if (sendother[iswap]) {
+    for (m = 0; m < nsend; m++) {
+      other_sendoffset[iswap][m]=send_accumulation;
+      for (int sendcounter = 0; sendcounter < sendnum[iswap][m]; sendcounter++) {
+        if (send_accumulation+other_sendsize[iswap][m] > maxsend) grow_send(send_accumulation+other_sendsize[iswap][m],1);
+          other_sendsize[iswap][m] += fix->pack_forward_comm(1,&sendlist[iswap][m][sendcounter],
+            &buf_send[other_sendoffset[iswap][m]+other_sendsize[iswap][m]],pbc_flag[iswap][m],pbc[iswap][m]);
         }
-         if (total_recvsize > maxrecv) grow_recv(total_recvsize);
-      }
-      if (recvother[iswap]) {
-        for (m = 0; m < nrecv; m++)
-          MPI_Irecv(&buf_recv[pair_recvoffset[iswap][m]],
-            pair_recvsize[iswap][m],
-            MPI_DOUBLE,recvproc[iswap][m],11,world,&requests[m]);
-      }
-      if (sendother[iswap]) {
-        for (m = 0; m < nsend; m++) {
-          MPI_Send(&buf_send[pair_sendoffset[iswap][m]],pair_sendsize[iswap][m],
-          MPI_DOUBLE,sendproc[iswap][m],11,world);
+      //compute offsets in buffer index for each proc to send to; i.e. there is one buffer for all sends
+      send_accumulation+=other_sendsize[iswap][m];
+    }
+  }
+  //receive buffer sizes
+
+  if (recvother[iswap]) {
+    for (m = 0; m < nrecv; m++)
+      MPI_Irecv(&other_recvsize[iswap][m],
+        1, MPI_INT,recvproc[iswap][m],10,world,&requests[m]);
+    }
+  //send buffer sizes to recv procs
+  if (sendother[iswap]) {
+    for (m = 0; m < nsend; m++) {
+      MPI_Send(&other_sendsize[iswap][m],1,
+        MPI_INT,sendproc[iswap][m],10,world);
+    }
+  }
+  //wait for sizes to be received and resize recv buffer accordingly
+  int total_recvsize=0;
+  if (recvother[iswap]) {
+    MPI_Waitall(nrecv,requests,MPI_STATUS_IGNORE);
+    for (m = 0; m < nrecv; m++){
+      other_recvoffset[iswap][m]=total_recvsize;
+      total_recvsize+=other_recvsize[iswap][m];
+    }
+    if (total_recvsize > maxrecv) grow_recv(total_recvsize);
+  }
+  if (recvother[iswap]) {
+    for (m = 0; m < nrecv; m++)
+      MPI_Irecv(&buf_recv[other_recvoffset[iswap][m]],
+        other_recvsize[iswap][m],
+        MPI_DOUBLE,recvproc[iswap][m],11,world,&requests[m]);
+  }
+  if (sendother[iswap]) {
+    for (m = 0; m < nsend; m++) {
+      MPI_Send(&buf_send[other_sendoffset[iswap][m]],other_sendsize[iswap][m],
+      MPI_DOUBLE,sendproc[iswap][m],11,world);
+    }
+  }
+  if (sendself[iswap]) {
+    for(int selfcount=nsendproc[iswap]-sendself[iswap]; selfcount<nsendproc[iswap]; selfcount++){
+        for (int sendcounter = 0; sendcounter < sendnum[iswap][selfcount]; sendcounter++) {
+          if (other_sendsize[iswap][selfcount] > maxsend) grow_send(other_sendsize[iswap][selfcount],1);
+          other_sendsize[iswap][selfcount] += fix->pack_forward_comm(1,&sendlist[iswap][selfcount][sendcounter],
+            &buf_send[other_sendsize[iswap][selfcount]],pbc_flag[iswap][selfcount],pbc[iswap][selfcount]);
         }
-      }
+        fix->unpack_forward_comm(recvnum[iswap][selfcount],firstrecv[iswap][selfcount],buf_send);
+    }
+  }
+  if (recvother[iswap]) {
+    for (i = 0; i < nrecv; i++) {
+      MPI_Waitany(nrecv,requests,&irecv,MPI_STATUS_IGNORE);
+      fix->unpack_forward_comm(recvnum[iswap][irecv],firstrecv[iswap][irecv],
+        &buf_recv[other_recvoffset[iswap][irecv]]);
+    }
+  }
+}
 
-      if (sendself[iswap]) {
+/* ----------------------------------------------------------------------
+   forward communication invoked by a Fix
+------------------------------------------------------------------------- */
 
-        for(int selfcount=nsendproc[iswap]-sendself[iswap]; selfcount<nsendproc[iswap]; selfcount++){
-          int self_accumulation=0;
-          for (int sendcounter = 0; sendcounter < sendnum[iswap][selfcount]; sendcounter++) {
-          if (self_accumulation+pair_sendsize[iswap][selfcount] > maxsend) grow_send(self_accumulation+pair_sendsize[iswap][selfcount],1);
-          pair_sendsize[iswap][selfcount] += pair->pack_forward_comm(1,&sendlist[iswap][selfcount][sendcounter],
-            &buf_send[pair_sendsize[iswap][selfcount]],pbc_flag[iswap][selfcount],pbc[iswap][selfcount]);
-          }
-          //compute offsets in buffer index for each proc to send to; i.e. there is one buffer for all sends
-          self_accumulation+=pair_sendsize[iswap][m];
-          pair->unpack_forward_comm(recvnum[iswap][selfcount],firstrecv[iswap][selfcount],buf_send);
+void CommCAC::forward_comm_npair(NPair *npair, int size)
+{
+  int i, irecv, n, m, nsend, nrecv;
+  AtomVec *avec = atom->avec;
+  double **x = atom->x;
+
+  // exchange data with another set of procs in each swap
+  // post recvs from all procs except self
+  // send data to all procs except self
+  // copy data to self if sendself is set
+  // wait on all procs except self and unpack received data
+  // if comm_x_only set, exchange or copy directly to x, don't unpack
+  //send first set of ghosts
+  int iswap = 0;
+
+  //check if buffer is sized large enough
+  int bufextra_old = bufextra;
+  maxexchange = maxexchange_atom + maxexchange_fix;
+  bufextra = maxexchange + BUFEXTRA;
+  if (bufextra > bufextra_old)
+    memory->grow(buf_send,maxsend+bufextra,"comm:buf_send");
+  nsend = nsendproc[iswap] - sendself[iswap];
+  nrecv = nrecvproc[iswap] - sendself[iswap];
+  for (m = 0; m < nsendproc[iswap]; m++) {
+    other_sendsize[iswap][m]=0;
+    other_sendoffset[iswap][m]=0;
+  }
+
+  for (m = 0; m < nrecvproc[iswap]; m++) {
+    other_recvsize[iswap][m]=0;
+    other_recvoffset[iswap][m]=0;
+  }
+
+  //compute buffer sizes for each of the nsend communications for this task
+  int send_accumulation=0;
+
+  if (sendother[iswap]) {
+    for (m = 0; m < nsend; m++) {
+      other_sendoffset[iswap][m]=send_accumulation;
+      for (int sendcounter = 0; sendcounter < sendnum[iswap][m]; sendcounter++) {
+        if (send_accumulation+other_sendsize[iswap][m] > maxsend) grow_send(send_accumulation+other_sendsize[iswap][m],1);
+          other_sendsize[iswap][m] += npair->pack_forward_comm(1,&sendlist[iswap][m][sendcounter],
+            &buf_send[other_sendoffset[iswap][m]+other_sendsize[iswap][m]],pbc_flag[iswap][m],pbc[iswap][m]);
         }
-      }
+      //compute offsets in buffer index for each proc to send to; i.e. there is one buffer for all sends
+      send_accumulation+=other_sendsize[iswap][m];
+    }
+  }
+  //receive buffer sizes
 
+  if (recvother[iswap]) {
+    for (m = 0; m < nrecv; m++)
+      MPI_Irecv(&other_recvsize[iswap][m],
+        1, MPI_INT,recvproc[iswap][m],10,world,&requests[m]);
+    }
+  //send buffer sizes to recv procs
+  if (sendother[iswap]) {
+    for (m = 0; m < nsend; m++) {
+      MPI_Send(&other_sendsize[iswap][m],1,
+        MPI_INT,sendproc[iswap][m],10,world);
+    }
+  }
+  //wait for sizes to be received and resize recv buffer accordingly
+  int total_recvsize=0;
+  if (recvother[iswap]) {
+    MPI_Waitall(nrecv,requests,MPI_STATUS_IGNORE);
+    for (m = 0; m < nrecv; m++){
+      other_recvoffset[iswap][m]=total_recvsize;
+      total_recvsize+=other_recvsize[iswap][m];
+    }
+    if (total_recvsize > maxrecv) grow_recv(total_recvsize);
+  }
+  if (recvother[iswap]) {
+    for (m = 0; m < nrecv; m++)
+      MPI_Irecv(&buf_recv[other_recvoffset[iswap][m]],
+        other_recvsize[iswap][m],
+        MPI_DOUBLE,recvproc[iswap][m],11,world,&requests[m]);
+  }
+  if (sendother[iswap]) {
+    for (m = 0; m < nsend; m++) {
+      MPI_Send(&buf_send[other_sendoffset[iswap][m]],other_sendsize[iswap][m],
+      MPI_DOUBLE,sendproc[iswap][m],11,world);
+    }
+  }
+  if (sendself[iswap]) {
+    for(int selfcount=nsendproc[iswap]-sendself[iswap]; selfcount<nsendproc[iswap]; selfcount++){
+        for (int sendcounter = 0; sendcounter < sendnum[iswap][selfcount]; sendcounter++) {
+          if (other_sendsize[iswap][selfcount] > maxsend) grow_send(other_sendsize[iswap][selfcount],1);
+          other_sendsize[iswap][selfcount] += npair->pack_forward_comm(1,&sendlist[iswap][selfcount][sendcounter],
+            &buf_send[other_sendsize[iswap][selfcount]],pbc_flag[iswap][selfcount],pbc[iswap][selfcount]);
+        }
+        npair->unpack_forward_comm(recvnum[iswap][selfcount],firstrecv[iswap][selfcount],buf_send);
+    }
+  }
+  if (recvother[iswap]) {
+    for (i = 0; i < nrecv; i++) {
+      MPI_Waitany(nrecv,requests,&irecv,MPI_STATUS_IGNORE);
+      npair->unpack_forward_comm(recvnum[iswap][irecv],firstrecv[iswap][irecv],
+        &buf_recv[other_recvoffset[iswap][irecv]]);
+    }
+  }
 }
 
 /* ----------------------------------------------------------------------
@@ -2254,11 +2405,10 @@ int CommCAC::sendbox_include(int iswap, int m, int current_element)
 
     for (int ibin_counter=0; ibin_counter<nbin_element_overlap[current_element]; ibin_counter++){
       int ibin=bin_element_overlap[current_element][ibin_counter];
-      for (int k = 0; k < nstencil; k++) {
-      for (int jj = 0; jj < bin_ncontent[ibin + stencil[k]]; jj++) {
-      if(ibin + stencil[k]<0) error->one(FLERR," negative bin index");
-      if(ibin + stencil[k]>=bin_pointer->mbins) error->one(FLERR," excessive bin index");
-      iebox = bin_content[ibin + stencil[k]][jj];
+      for (int jj = 0; jj < bin_ncontent[ibin]; jj++) {
+      if(ibin<0) error->one(FLERR," negative bin index");
+      if(ibin>=bin_pointer->mbins) error->one(FLERR," excessive bin index");
+      iebox = bin_content[ibin][jj];
 
 
       //check if this ebox is relevant to this sendbox first
@@ -2295,7 +2445,6 @@ int CommCAC::sendbox_include(int iswap, int m, int current_element)
         return 1;
       }
 
-      }
       }
     }
 
@@ -2397,8 +2546,8 @@ void CommCAC::box_drop_brick_full(int idim, double *lo, double *hi, int &indexme
     xi[i]=static_cast<int> ((lo[i]-boxlo[i])/subbox_size[i]);
     xf[i]=static_cast<int> ((hi[i]-boxlo[i])/subbox_size[i]);
 
-    if(hi[i]==boxhi[i]) xf[i]=procgrid[i]-1;
-    if(lo[i]==boxlo[i]) xi[i]=0;
+    if(xf[i]==procgrid[i]) xf[i]=procgrid[i]-1;
+    if(xi[i]<0) xi[i]=0;
   }
 
     for(int x=xi[0]; x<=xf[0]; x++){
@@ -3045,10 +3194,10 @@ void CommCAC::allocate_swap(int n)
   overlap_recvsize = new int*[n];
   overlap_sendoffset = new int*[n];
   overlap_recvoffset = new int*[n];
-  pair_sendsize = new int*[n];
-  pair_recvsize = new int*[n];
-  pair_recvoffset = new int*[n];
-  pair_sendoffset = new int*[n];
+  other_sendsize = new int*[n];
+  other_recvsize = new int*[n];
+  other_recvoffset = new int*[n];
+  other_sendoffset = new int*[n];
   recvnum = new int*[n];
   overlap_recvnum = new int*[n];
   size_forward_recv = new int*[n];
@@ -3087,10 +3236,10 @@ void CommCAC::allocate_swap(int n)
     overlap_recvsize[i] = NULL;
     overlap_sendoffset[i] = NULL;
     overlap_recvoffset[i] = NULL;
-    pair_sendsize[i] = NULL;
-    pair_recvsize[i] = NULL;
-    pair_sendoffset[i] = NULL;
-    pair_recvoffset[i] = NULL;
+    other_sendsize[i] = NULL;
+    other_recvsize[i] = NULL;
+    other_sendoffset[i] = NULL;
+    other_recvoffset[i] = NULL;
     size_forward_recv[i] = firstrecv[i] = overlap_firstrecv[i] = NULL;
     size_reverse_send[i] = size_reverse_recv[i] = NULL;
     forward_recv_offset[i] = reverse_recv_offset[i] = NULL;
@@ -3157,10 +3306,10 @@ void CommCAC::grow_swap_send(int i, int n, int nold)
   overlap_sendsize[i] = new int[n];
   delete [] overlap_sendoffset[i];
   overlap_sendoffset[i] = new int[n];
-  delete [] pair_sendsize[i];
-  pair_sendsize[i] = new int[n];
-  delete [] pair_sendoffset[i];
-  pair_sendoffset[i] = new int[n];
+  delete [] other_sendsize[i];
+  other_sendsize[i] = new int[n];
+  delete [] other_sendoffset[i];
+  other_sendoffset[i] = new int[n];
 
   delete [] size_reverse_recv[i];
   size_reverse_recv[i] = new int[n];
@@ -3238,10 +3387,10 @@ void CommCAC::grow_swap_recv(int i, int n, int nold)
   overlap_recvsize[i] = new int[n];
   delete [] overlap_recvoffset[i];
   overlap_recvoffset[i] = new int[n];
-  delete [] pair_recvsize[i];
-  pair_recvsize[i] = new int[n];
-  delete [] pair_recvoffset[i];
-  pair_recvoffset[i] = new int[n];
+  delete [] other_recvsize[i];
+  other_recvsize[i] = new int[n];
+  delete [] other_recvoffset[i];
+  other_recvoffset[i] = new int[n];
   delete [] size_reverse_send[i];
   size_reverse_send[i] = new int[n];
 
@@ -3274,10 +3423,10 @@ void CommCAC::deallocate_swap(int n)
     delete [] overlap_recvsize[i];
     delete [] overlap_sendoffset[i];
     delete [] overlap_recvoffset[i];
-    delete [] pair_sendsize[i];
-    delete [] pair_recvsize[i];
-    delete [] pair_sendoffset[i];
-    delete [] pair_recvoffset[i];
+    delete [] other_sendsize[i];
+    delete [] other_recvsize[i];
+    delete [] other_sendoffset[i];
+    delete [] other_recvoffset[i];
     delete [] recvnum[i];
     delete [] overlap_recvnum[i];
     delete [] size_forward_recv[i];
@@ -3325,10 +3474,10 @@ void CommCAC::deallocate_swap(int n)
   delete [] overlap_recvsize;
   delete [] overlap_sendoffset;
   delete [] overlap_recvoffset;
-  delete [] pair_sendsize;
-  delete [] pair_recvsize;
-  delete [] pair_sendoffset;
-  delete [] pair_recvoffset;
+  delete [] other_sendsize;
+  delete [] other_recvsize;
+  delete [] other_sendoffset;
+  delete [] other_recvoffset;
   delete [] recvnum;
   delete [] overlap_recvnum;
   delete [] size_forward_recv;

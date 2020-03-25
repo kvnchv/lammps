@@ -20,13 +20,13 @@ using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-Asa_Data::Asa_Data(LAMMPS *lmp, PairCAC *paircac) : Pointers(lmp)
+Asa_Data::Asa_Data(LAMMPS *lmp, NPairCAC *npaircac) : Pointers(lmp)
 {
   cgParm=NULL;
   asaParm=NULL;
   Objective=NULL;
 
-  pair_pointer = paircac;
+  npair_pointer = npaircac;
   avec_pointer = NULL;
   class_flag=0;
    
@@ -42,7 +42,7 @@ Asa_Data::Asa_Data(LAMMPS *lmp, AtomVecCAC *atomveccac) : Pointers(lmp)
   Objective=NULL;
 
   avec_pointer = atomveccac;
-  pair_pointer = NULL;
+  npair_pointer = NULL;
   class_flag=1;
    
   allocate();
@@ -90,12 +90,17 @@ int Asa_Data::call_asa_cg(double *x,double *lo,double *hi, ASA_INT n,
   int ntry = 0;
   flag=asa_cg(x, lo, hi, n, NULL, cgParm, asaParm,
     grad_tol, NULL, Work, iWork, this);
-  while((flag==4||flag==2)&&ntry!=max_tries){
+  while((flag==4||flag==2||flag==7)&&ntry!=max_tries){
+    //perturb point
+    if(flag==7){
+      for(int ni=0; ni < n; ni++)
+      x[ni] += grad_tol;
+    }
     ntry++;
     flag=asa_cg(x, lo, hi, n, NULL, cgParm, asaParm,
     grad_tol, NULL, Work, iWork, this);
   }
-  if(flag>1){
+  if(flag>1&&flag!=7){
   if(class_flag==0)
   sprintf(asa_error, "asa_cg iterations failed in finding a solution for quadrature neighboring processes. flag = %d ", flag);
   if(class_flag==1)
@@ -144,13 +149,13 @@ double Asa_Data::myvalue_surfmin(asa_objective *asa)
   double shape_func2;
     double surf_args[3];
   //get necessary data from pair pointer about the current element iteration
-  double *quad_r = pair_pointer->quad_r;
-  int *neighbor_element_scale = pair_pointer->neighbor_element_scale;
-  int *dof_surf_list = pair_pointer->dof_surf_list;
-  int *surf_select = pair_pointer->surf_select;
-  int neigh_nodes_per_element = pair_pointer->neigh_nodes_per_element;
-  int poly_min = pair_pointer->poly_min;
-  double **neighbor_element_positions = pair_pointer->neighbor_element_positions[poly_min];
+  double *quad_r = npair_pointer->quad_r;
+  int *neighbor_element_scale = npair_pointer->neighbor_element_scale;
+  int *dof_surf_list = npair_pointer->dof_surf_list;
+  int *surf_select = npair_pointer->surf_select;
+  int neigh_nodes_per_element = npair_pointer->neigh_nodes_per_element;
+  int poly_min = npair_pointer->poly_min;
+  double **neighbor_element_positions = npair_pointer->neighbor_element_positions[poly_min];
    
   unit_cell_mapped[0] = 2 / double(neighbor_element_scale[0]);
   unit_cell_mapped[1] = 2 / double(neighbor_element_scale[1]);
@@ -198,7 +203,7 @@ double Asa_Data::myvalue_surfmin(asa_objective *asa)
   pz = 0;
   
   for (int kk = 0; kk < neigh_nodes_per_element; kk++) {
-    shape_func2 = pair_pointer->shape_function(surf_args[0], surf_args[1], surf_args[2], 2, kk + 1);
+    shape_func2 = npair_pointer->shape_function(surf_args[0], surf_args[1], surf_args[2], 2, kk + 1);
     px += neighbor_element_positions[kk][0] * shape_func2;
     py += neighbor_element_positions[kk][1] * shape_func2;
     pz += neighbor_element_positions[kk][2] * shape_func2;
@@ -223,13 +228,13 @@ void Asa_Data::mygrad_surfmin(asa_objective *asa)
   double shape_func2, shape_func1;
   double surf_args[3];
   //get necessary data from pair pointer about the current element iteration
-  double *quad_r = pair_pointer->quad_r;
-  int *neighbor_element_scale = pair_pointer->neighbor_element_scale;
-  int *dof_surf_list = pair_pointer->dof_surf_list;
-  int *surf_select = pair_pointer->surf_select;
-  int neigh_nodes_per_element = pair_pointer->neigh_nodes_per_element;
-  int poly_min = pair_pointer->poly_min;
-  double **neighbor_element_positions = pair_pointer->neighbor_element_positions[poly_min];
+  double *quad_r = npair_pointer->quad_r;
+  int *neighbor_element_scale = npair_pointer->neighbor_element_scale;
+  int *dof_surf_list = npair_pointer->dof_surf_list;
+  int *surf_select = npair_pointer->surf_select;
+  int neigh_nodes_per_element = npair_pointer->neigh_nodes_per_element;
+  int poly_min = npair_pointer->poly_min;
+  double **neighbor_element_positions = npair_pointer->neighbor_element_positions[poly_min];
   
   unit_cell_mapped[0] = 2 / double(neighbor_element_scale[0]);
   unit_cell_mapped[1] = 2 / double(neighbor_element_scale[1]);
@@ -288,7 +293,7 @@ void Asa_Data::mygrad_surfmin(asa_objective *asa)
   py = 0;
   pz = 0;
   for (int kk = 0; kk < neigh_nodes_per_element; kk++) {
-    shape_func2 = pair_pointer->shape_function(surf_args[0], surf_args[1], surf_args[2], 2, kk + 1);
+    shape_func2 = npair_pointer->shape_function(surf_args[0], surf_args[1], surf_args[2], 2, kk + 1);
 
     px += neighbor_element_positions[kk][0] * shape_func2;
     py += neighbor_element_positions[kk][1] * shape_func2;
@@ -302,8 +307,8 @@ void Asa_Data::mygrad_surfmin(asa_objective *asa)
   py2 = 0;
   pz2 = 0;
   for (int kk = 0; kk < neigh_nodes_per_element; kk++) {
-    shape_func1 = pair_pointer->shape_function_derivative(surf_args[0], surf_args[1], surf_args[2], 2, kk + 1, deriv_select[0]);
-    shape_func2 = pair_pointer->shape_function_derivative(surf_args[0], surf_args[1], surf_args[2], 2, kk + 1, deriv_select[1]);
+    shape_func1 = npair_pointer->shape_function_derivative(surf_args[0], surf_args[1], surf_args[2], 2, kk + 1, deriv_select[0]);
+    shape_func2 = npair_pointer->shape_function_derivative(surf_args[0], surf_args[1], surf_args[2], 2, kk + 1, deriv_select[1]);
     px1 += neighbor_element_positions[kk][0] * shape_func1;
     py1 += neighbor_element_positions[kk][1] * shape_func1;
     pz1 += neighbor_element_positions[kk][2] * shape_func1;
