@@ -116,8 +116,8 @@ void AtomVecCAC::process_args(int narg, char **arg)
 void AtomVecCAC::define_elements()
 {
   if(element_type_count==0){
-    atom->element_type_count=element_type_count = 3; //increase if new types added
-    memory->grow(atom->nodes_per_element_list, element_type_count, "atom:nodes_per_element_list");
+  atom->element_type_count=element_type_count = 3; //increase if new types added
+  memory->grow(atom->nodes_per_element_list, element_type_count, "atom:nodes_per_element_list");
   //define number of nodes for existing element types
   atom->nodes_per_element_list[0] = 1;
   atom->nodes_per_element_list[1] = 8;
@@ -406,19 +406,19 @@ int AtomVecCAC::pack_comm(int n, int *list, double *buf,
       buf[m++] = x[j][1];
       buf[m++] = x[j][2];
 
-    buf[m++] = element_type[j];
+      buf[m++] = element_type[j];
 
-    buf[m++] = element_scale[j][0];
-    buf[m++] = element_scale[j][1];
-    buf[m++] = element_scale[j][2];
+      buf[m++] = element_scale[j][0];
+      buf[m++] = element_scale[j][1];
+      buf[m++] = element_scale[j][2];
 
-    buf[m++] = poly_count[j];
-    for (int type_map = 0; type_map < poly_count[j]; type_map++) {
-      buf[m++] = node_types[j][type_map];
-    }
+      buf[m++] = poly_count[j];
+      for (int type_map = 0; type_map < poly_count[j]; type_map++) {
+        buf[m++] = node_types[j][type_map];
+      }
 
-    for (int poly_index = 0; poly_index < poly_count[j]; poly_index++){
-      for (int nodecount = 0; nodecount< nodes_count_list[element_type[j]]; nodecount++)
+      for (int poly_index = 0; poly_index < poly_count[j]; poly_index++){
+        for (int nodecount = 0; nodecount< nodes_count_list[element_type[j]]; nodecount++)
         {
           buf[m++] = nodal_positions[j][poly_index][nodecount][0];
           buf[m++] = nodal_positions[j][poly_index][nodecount][1];
@@ -448,28 +448,28 @@ int AtomVecCAC::pack_comm(int n, int *list, double *buf,
       buf[m++] = x[j][1] + dy;
       buf[m++] = x[j][2] + dz;
 
-    buf[m++] = element_type[j];
-    buf[m++] = element_scale[j][0];
-    buf[m++] = element_scale[j][1];
-    buf[m++] = element_scale[j][2];
-    buf[m++] = poly_count[j];
-    for (int type_map = 0; type_map < poly_count[j]; type_map++) {
-      buf[m++] = node_types[j][type_map];
-    }
-
-    for (int poly_index = 0; poly_index < poly_count[j]; poly_index++){
-      for (int nodecount = 0; nodecount< nodes_count_list[element_type[j]]; nodecount++)
-      {
-        buf[m++] = nodal_positions[j][poly_index][nodecount][0]+dx;
-        buf[m++] = nodal_positions[j][poly_index][nodecount][1] + dy;
-        buf[m++] = nodal_positions[j][poly_index][nodecount][2] + dz;
-        buf[m++] = initial_nodal_positions[j][poly_index][nodecount][0] + dx;
-        buf[m++] = initial_nodal_positions[j][poly_index][nodecount][1] + dy;
-        buf[m++] = initial_nodal_positions[j][poly_index][nodecount][2] + dz;
-        buf[m++] = nodal_velocities[j][poly_index][nodecount][0];
-        buf[m++] = nodal_velocities[j][poly_index][nodecount][1];
-        buf[m++] = nodal_velocities[j][poly_index][nodecount][2];
+      buf[m++] = element_type[j];
+      buf[m++] = element_scale[j][0];
+      buf[m++] = element_scale[j][1];
+      buf[m++] = element_scale[j][2];
+      buf[m++] = poly_count[j];
+      for (int type_map = 0; type_map < poly_count[j]; type_map++) {
+        buf[m++] = node_types[j][type_map];
       }
+
+      for (int poly_index = 0; poly_index < poly_count[j]; poly_index++){
+        for (int nodecount = 0; nodecount< nodes_count_list[element_type[j]]; nodecount++)
+        {
+          buf[m++] = nodal_positions[j][poly_index][nodecount][0]+dx;
+          buf[m++] = nodal_positions[j][poly_index][nodecount][1] + dy;
+          buf[m++] = nodal_positions[j][poly_index][nodecount][2] + dz;
+          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][0] + dx;
+          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][1] + dy;
+          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][2] + dz;
+          buf[m++] = nodal_velocities[j][poly_index][nodecount][0];
+          buf[m++] = nodal_velocities[j][poly_index][nodecount][1];
+          buf[m++] = nodal_velocities[j][poly_index][nodecount][2];
+        }
     }
 
     }
@@ -539,29 +539,29 @@ int AtomVecCAC::pack_comm_vel(int n, int *list, double *buf,
         buf[m++] = v[j][0];
         buf[m++] = v[j][1];
         buf[m++] = v[j][2];
-    buf[m++] = element_type[j];
-    buf[m++] = element_scale[j][0];
-    buf[m++] = element_scale[j][1];
-    buf[m++] = element_scale[j][2];
-    buf[m++] = poly_count[j];
-    for (int type_map = 0; type_map < poly_count[j]; type_map++) {
-      buf[m++] = node_types[j][type_map];
-    }
+        buf[m++] = element_type[j];
+        buf[m++] = element_scale[j][0];
+        buf[m++] = element_scale[j][1];
+        buf[m++] = element_scale[j][2];
+        buf[m++] = poly_count[j];
+        for (int type_map = 0; type_map < poly_count[j]; type_map++) {
+          buf[m++] = node_types[j][type_map];
+        }
 
-    for (int poly_index = 0; poly_index < poly_count[j]; poly_index++){
-      for (int nodecount = 0; nodecount< nodes_count_list[element_type[j]]; nodecount++)
-      {
-        buf[m++] = nodal_positions[j][poly_index][nodecount][0] + dx;
-        buf[m++] = nodal_positions[j][poly_index][nodecount][1] + dy;
-        buf[m++] = nodal_positions[j][poly_index][nodecount][2] + dz;
-        buf[m++] = initial_nodal_positions[j][poly_index][nodecount][0] + dx;
-        buf[m++] = initial_nodal_positions[j][poly_index][nodecount][1] + dy;
-        buf[m++] = initial_nodal_positions[j][poly_index][nodecount][2] + dz;
-        buf[m++] = nodal_velocities[j][poly_index][nodecount][0];
-        buf[m++] = nodal_velocities[j][poly_index][nodecount][1];
-        buf[m++] = nodal_velocities[j][poly_index][nodecount][2];
-      }
-    }
+        for (int poly_index = 0; poly_index < poly_count[j]; poly_index++){
+        for (int nodecount = 0; nodecount< nodes_count_list[element_type[j]]; nodecount++)
+        {
+          buf[m++] = nodal_positions[j][poly_index][nodecount][0] + dx;
+          buf[m++] = nodal_positions[j][poly_index][nodecount][1] + dy;
+          buf[m++] = nodal_positions[j][poly_index][nodecount][2] + dz;
+          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][0] + dx;
+          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][1] + dy;
+          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][2] + dz;
+          buf[m++] = nodal_velocities[j][poly_index][nodecount][0];
+          buf[m++] = nodal_velocities[j][poly_index][nodecount][1];
+          buf[m++] = nodal_velocities[j][poly_index][nodecount][2];
+        }
+        }
       }
     } else {
       dvx = pbc[0]*h_rate[0] + pbc[5]*h_rate[5] + pbc[4]*h_rate[4];
@@ -577,56 +577,56 @@ int AtomVecCAC::pack_comm_vel(int n, int *list, double *buf,
           buf[m++] = v[j][0] + dvx;
           buf[m++] = v[j][1] + dvy;
           buf[m++] = v[j][2] + dvz;
-      buf[m++] = element_type[j];
-      buf[m++] = element_scale[j][0];
-      buf[m++] = element_scale[j][1];
-      buf[m++] = element_scale[j][2];
-      buf[m++] = poly_count[j];
-      for (int type_map = 0; type_map < poly_count[j]; type_map++) {
-        buf[m++] = node_types[j][type_map];
-      }
+          buf[m++] = element_type[j];
+          buf[m++] = element_scale[j][0];
+          buf[m++] = element_scale[j][1];
+          buf[m++] = element_scale[j][2];
+          buf[m++] = poly_count[j];
+          for (int type_map = 0; type_map < poly_count[j]; type_map++) {
+            buf[m++] = node_types[j][type_map];
+          }
 
-      for (int poly_index = 0; poly_index < poly_count[j]; poly_index++) {
-        for (int nodecount = 0; nodecount< nodes_count_list[element_type[j]]; nodecount++)
-        {
-          buf[m++] = nodal_positions[j][poly_index][nodecount][0] + dx;
-          buf[m++] = nodal_positions[j][poly_index][nodecount][1] + dy;
-          buf[m++] = nodal_positions[j][poly_index][nodecount][2] + dz;
-          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][0] + dx;
-          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][1] + dy;
-          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][2] + dz;
-          buf[m++] = nodal_velocities[j][poly_index][nodecount][0] + dvx;
-          buf[m++] = nodal_velocities[j][poly_index][nodecount][1] + dvy;
-          buf[m++] = nodal_velocities[j][poly_index][nodecount][2] + dvz;
-        }
-      }
+          for (int poly_index = 0; poly_index < poly_count[j]; poly_index++) {
+          for (int nodecount = 0; nodecount< nodes_count_list[element_type[j]]; nodecount++)
+          {
+            buf[m++] = nodal_positions[j][poly_index][nodecount][0] + dx;
+            buf[m++] = nodal_positions[j][poly_index][nodecount][1] + dy;
+            buf[m++] = nodal_positions[j][poly_index][nodecount][2] + dz;
+            buf[m++] = initial_nodal_positions[j][poly_index][nodecount][0] + dx;
+            buf[m++] = initial_nodal_positions[j][poly_index][nodecount][1] + dy;
+            buf[m++] = initial_nodal_positions[j][poly_index][nodecount][2] + dz;
+            buf[m++] = nodal_velocities[j][poly_index][nodecount][0] + dvx;
+            buf[m++] = nodal_velocities[j][poly_index][nodecount][1] + dvy;
+            buf[m++] = nodal_velocities[j][poly_index][nodecount][2] + dvz;
+          }
+          }
         } else {
           buf[m++] = v[j][0];
           buf[m++] = v[j][1];
           buf[m++] = v[j][2];
-      buf[m++] = element_type[j];
-      buf[m++] = element_scale[j][0];
-      buf[m++] = element_scale[j][1];
-      buf[m++] = element_scale[j][2];
-      buf[m++] = poly_count[j];
-      for (int type_map = 0; type_map < poly_count[j]; type_map++) {
-        buf[m++] = node_types[j][type_map];
-      }
+          buf[m++] = element_type[j];
+          buf[m++] = element_scale[j][0];
+          buf[m++] = element_scale[j][1];
+          buf[m++] = element_scale[j][2];
+          buf[m++] = poly_count[j];
+          for (int type_map = 0; type_map < poly_count[j]; type_map++) {
+            buf[m++] = node_types[j][type_map];
+          }
 
-      for (int poly_index = 0; poly_index < poly_count[j]; poly_index++){
-        for (int nodecount = 0; nodecount< nodes_count_list[element_type[j]]; nodecount++)
-        {
-          buf[m++] = nodal_positions[j][poly_index][nodecount][0] + dx;
-          buf[m++] = nodal_positions[j][poly_index][nodecount][1] + dy;
-          buf[m++] = nodal_positions[j][poly_index][nodecount][2] + dz;
-          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][0] + dx;
-          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][1] + dy;
-          buf[m++] = initial_nodal_positions[j][poly_index][nodecount][2] + dz;
-          buf[m++] = nodal_velocities[j][poly_index][nodecount][0];
-          buf[m++] = nodal_velocities[j][poly_index][nodecount][1];
-          buf[m++] = nodal_velocities[j][poly_index][nodecount][2];
-        }
-      }
+          for (int poly_index = 0; poly_index < poly_count[j]; poly_index++){
+          for (int nodecount = 0; nodecount< nodes_count_list[element_type[j]]; nodecount++)
+          {
+            buf[m++] = nodal_positions[j][poly_index][nodecount][0] + dx;
+            buf[m++] = nodal_positions[j][poly_index][nodecount][1] + dy;
+            buf[m++] = nodal_positions[j][poly_index][nodecount][2] + dz;
+            buf[m++] = initial_nodal_positions[j][poly_index][nodecount][0] + dx;
+            buf[m++] = initial_nodal_positions[j][poly_index][nodecount][1] + dy;
+            buf[m++] = initial_nodal_positions[j][poly_index][nodecount][2] + dz;
+            buf[m++] = nodal_velocities[j][poly_index][nodecount][0];
+            buf[m++] = nodal_velocities[j][poly_index][nodecount][1];
+            buf[m++] = nodal_velocities[j][poly_index][nodecount][2];
+          }
+          }
         }
       }
     }
@@ -646,14 +646,14 @@ void AtomVecCAC::unpack_comm(int n, int first, double *buf)
     x[i][0] = buf[m++];
     x[i][1] = buf[m++];
     x[i][2] = buf[m++];
-   element_type[i]=buf[m++];
-   element_scale[i][0] = buf[m++];
-   element_scale[i][1] = buf[m++];
-   element_scale[i][2] = buf[m++];
-   poly_count[i] = buf[m++];
-  for (int type_map = 0; type_map < poly_count[i]; type_map++) {
-     node_types[i][type_map]= buf[m++];
-  }
+    element_type[i]=buf[m++];
+    element_scale[i][0] = buf[m++];
+    element_scale[i][1] = buf[m++];
+    element_scale[i][2] = buf[m++];
+    poly_count[i] = buf[m++];
+    for (int type_map = 0; type_map < poly_count[i]; type_map++) {
+      node_types[i][type_map]= buf[m++];
+    }
 
   for (int poly_index = 0; poly_index < poly_count[i]; poly_index++){
     for (int nodecount = 0; nodecount < nodes_count_list[element_type[i]]; nodecount++)
@@ -687,14 +687,14 @@ void AtomVecCAC::unpack_comm_vel(int n, int first, double *buf)
     v[i][0] = buf[m++];
     v[i][1] = buf[m++];
     v[i][2] = buf[m++];
-  element_type[i] = buf[m++];
-  element_scale[i][0] = buf[m++];
-  element_scale[i][1] = buf[m++];
-  element_scale[i][2] = buf[m++];
-  poly_count[i] = buf[m++];
-  for (int type_map = 0; type_map < poly_count[i]; type_map++) {
-    node_types[i][type_map] = buf[m++];
-  }
+    element_type[i] = buf[m++];
+    element_scale[i][0] = buf[m++];
+    element_scale[i][1] = buf[m++];
+    element_scale[i][2] = buf[m++];
+    poly_count[i] = buf[m++];
+    for (int type_map = 0; type_map < poly_count[i]; type_map++) {
+      node_types[i][type_map] = buf[m++];
+    }
 
   for (int poly_index = 0; poly_index < poly_count[i]; poly_index++){
     for (int nodecount = 0; nodecount < nodes_count_list[element_type[i]]; nodecount++)
@@ -1637,6 +1637,9 @@ void AtomVecCAC::data_atom(double *coord, imageint imagetmp, char **values)
     nodal_velocities[nlocal][poly_index][node_index][0] = 0;
     nodal_velocities[nlocal][poly_index][node_index][1] = 0;
     nodal_velocities[nlocal][poly_index][node_index][2] = 0;
+    nodal_forces[nlocal][poly_index][node_index][0] = 0;
+    nodal_forces[nlocal][poly_index][node_index][1] = 0;
+    nodal_forces[nlocal][poly_index][node_index][2] = 0;
     }
   }
 

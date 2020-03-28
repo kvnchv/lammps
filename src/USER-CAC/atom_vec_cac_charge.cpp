@@ -1630,6 +1630,9 @@ void AtomVecCAC_Charge::data_atom(double *coord, imageint imagetmp, char **value
     nodal_velocities[nlocal][poly_index][node_index][0] = 0;
     nodal_velocities[nlocal][poly_index][node_index][1] = 0;
     nodal_velocities[nlocal][poly_index][node_index][2] = 0;
+    nodal_forces[nlocal][poly_index][node_index][0] = 0;
+    nodal_forces[nlocal][poly_index][node_index][1] = 0;
+    nodal_forces[nlocal][poly_index][node_index][2] = 0;
   }
   }
 
