@@ -330,14 +330,17 @@ void CACMinFire::copy_vectors(){
   int *element_type = atom->element_type;
   double ****nodal_positions = atom->nodal_positions;
   double ****nodal_forces = atom->nodal_forces;
+  double ****nodal_velocities = atom->nodal_velocities;
   double *min_x = atom->min_x;
   double *min_f = atom->min_f;
+  double *min_v = atom->min_v;
   double **x = atom->x;
   int nodes_per_element;
 
   //copy contents to these vectors
   int dense_count_x=0;
   int dense_count_f=0;
+  int dense_count_v=0;
   for(int element_counter=0; element_counter < atom->nlocal; element_counter++){
     for(int poly_counter=0; poly_counter < npoly[element_counter]; poly_counter++){
       for(int node_counter=0; node_counter < nodes_per_element_list[element_type[element_counter]]; node_counter++){
@@ -347,6 +350,9 @@ void CACMinFire::copy_vectors(){
          nodal_forces[element_counter][poly_counter][node_counter][0] = min_f[dense_count_f++];
          nodal_forces[element_counter][poly_counter][node_counter][1] = min_f[dense_count_f++];
          nodal_forces[element_counter][poly_counter][node_counter][2] = min_f[dense_count_f++];
+         nodal_velocities[element_counter][poly_counter][node_counter][0] = min_v[dense_count_v++];
+         nodal_velocities[element_counter][poly_counter][node_counter][1] = min_v[dense_count_v++];
+         nodal_velocities[element_counter][poly_counter][node_counter][2] = min_v[dense_count_v++];
        }
      }
   }
@@ -398,7 +404,7 @@ void CACMinFire::copy_force(){
   //grow the dense aligned vectors
   if(atom->dense_count>densemax){
   min_x = memory->grow(atom->min_x,atom->dense_count,"min_CAC_cg:min_x");
-  min_v = memory->grow(atom->min_v,atom->dense_count,"min_CAC_cg:min_x");
+  min_v = memory->grow(atom->min_v,atom->dense_count,"min_CAC_cg:min_v");
   min_f = memory->grow(atom->min_f,atom->dense_count,"min_CAC_cg:min_f");
   densemax=atom->dense_count;
   }
