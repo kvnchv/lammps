@@ -511,14 +511,14 @@ void NEBCAC::readfile(char *file, int flag)
       //     will be remapped back into box when simulation starts
       //     its image flags will then be adjusted
       tag = ATOTAGINT(values[0]);
-      m = atom->map(tag);
+      m = tag - 1; //atom->tag[tag];
       // make sure that the node parameters match 
       if (npoly != poly_count[m])
         error->all(FLERR, "npoly read from last file does not match polycount for id");
       if (nodecount != nodes_count_list[element_type[m]])
-        error->all(FLERR, "nodecount read from last file does not match element_type for id");
+        error->all(FLERR, "  read from last file does not match element_type for id");
 
-      if (m >= 0 && m < atom->nlocal) {
+      if (m >= 0 && m < atom->nlocal) {   
         x[m][0] = x[m][1] = x[m][2] = 0;
         for (int p = 0; p < npoly; p++){  
           for (int k = 0; k < nodecount; k++) {          
@@ -529,13 +529,13 @@ void NEBCAC::readfile(char *file, int flag)
             if (flag == 0) {
               delx = xx - nodal_positions[m][p][k][0];
               dely = yy - nodal_positions[m][p][k][1];
-              delz = zz - nodal_positions[m][p][k][2];
+              delz = zz - nodal_positions[m][p] [k][2];
               if(delx != 0 || dely != 0 || delz != 0){
-                printf("%f, %f, %f\n", xx, yy, zz);
-                printf("%f, %f, %f\n", delx, dely, delz);
-                printf("%f, %f, %f\n", nodal_positions[m][p][k][0], nodal_positions[m][p][k][1], nodal_positions[m][p][k][2]);
-                printf("%f, %f, %f\n", nodal_positions[m][p][k][0], nodal_positions[m][p][k][1], nodal_positions[m][p][k][2]);
-                printf("tag=%d, m=%d, k=%d, p=%d, index=%d, d=%d\n\n", tag, m, k, p, index,decline);
+                //printf("%f, %f, %f\n", xx, yy, zz);
+                //printf("%f, %f, %f\n", delx, dely, delz);
+                //printf("%f, %f, %f\n", nodal_positions[m][p][k][0], nodal_positions[m][p][k][1], nodal_positions[m][p][k][2]);
+                //printf("%f, %f, %f\n", nodal_positions[m][p][k][0], nodal_positions[m][p][k][1], nodal_positions[m][p][k][2]);
+                //printf("tag=%d, m=%d, k=%d, p=%d, index=%d, d=%d\n\n", tag, m, k, p, index,decline);
               }
               domain->minimum_image(delx,dely,delz);
               nodal_positions[m][p][k][0] += fraction*delx;
