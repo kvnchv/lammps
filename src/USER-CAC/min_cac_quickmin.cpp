@@ -11,8 +11,9 @@
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
+#include "min_cac_quickmin.h"
+#include <mpi.h>
 #include <cmath>
-#include "min_cac_fire.h"
 #include "universe.h"
 #include "atom.h"
 #include "force.h"
@@ -29,45 +30,28 @@ using namespace LAMMPS_NS;
 #define EPS_ENERGY 1.0e-8
 
 #define DELAYSTEP 5
-#define DT_GROW 1.1
-#define DT_SHRINK 0.5
-#define ALPHA0 0.1
-#define ALPHA_SHRINK 0.99
-#define TMAX 10.0
 
 /* ---------------------------------------------------------------------- */
 
-CACMinFire::CACMinFire(LAMMPS *lmp) : Min(lmp) {
-  copy_flag = force_copy_flag = 1;
-  densemax=0;
-}
+CACMinQuickMin::CACMinQuickMin(LAMMPS *lmp) : Min(lmp) {}
 
 /* ---------------------------------------------------------------------- */
 
-void CACMinFire::init()
+void CACMinQuickMin::init()
 {
   Min::init();
   if (!atom->CAC_flag) error->all(FLERR,"CAC min styles require a CAC atom style");
   if (!atom->CAC_pair_flag) error->all(FLERR,"CAC min styles require a CAC pair style");
   dt = update->dt;
-  dtmax = TMAX * dt;
-  alpha = ALPHA0;
   last_negative = update->ntimestep;
 }
 
 /* ---------------------------------------------------------------------- */
 
-void CACMinFire::setup_style()
+void CACMinQuickMin::setup_style()
 {
-
-  int *npoly = atom->poly_count;
-  int *nodes_per_element_list = atom->nodes_per_element_list;
-  int *element_type = atom->element_type;
-  int nodes_per_element;
-
   double *min_v = atom->min_v;
   nvec=atom->dense_count;
-
   for (int i=0; i < nvec; i ++) min_v[i] = 0.0;
 }
 
@@ -76,12 +60,12 @@ void CACMinFire::setup_style()
    called after atoms have migrated
 ------------------------------------------------------------------------- */
 
-void CACMinFire::reset_vectors()
+void CACMinQuickMin::reset_vectors()
 {
   int *npoly = atom->poly_count;
   int *nodes_per_element_list = atom->nodes_per_element_list;
   int *element_type = atom->element_type;
-  
+
   atom->dense_count=0;
   for(int element_counter=0; element_counter < atom->nlocal; element_counter++){
      atom->dense_count+=3*npoly[element_counter]*nodes_per_element_list[element_type[element_counter]];
@@ -91,35 +75,25 @@ void CACMinFire::reset_vectors()
   nvec=atom->dense_count;
   if (nvec) xvec = atom->min_x;
   if (nvec) fvec = atom->min_f;
-
 }
 
-/* ---------------------------------------------------------------------- */
+/* ----------------------------------------------------------------------
+   minimization via QuickMin damped dynamics
+------------------------------------------------------------------------- */
 
-int CACMinFire::iterate(int maxiter)
+int CACMinQuickMin::iterate(int maxiter)
 {
   bigint ntimestep;
-  double vmax,vdotf,vdotfall,vdotv,vdotvall,fdotf,fdotfall;
-  double scale1,scale2;
+  double vmax,vdotf,vdotfall,fdotf,fdotfall,scale;
   double dtvone,dtv,dtf,dtfm;
-  int i, flag,flagall;
+  int flag,flagall;
 
   int *element_type = atom->element_type;
   int **node_types = atom->node_types;
   int *npoly = atom->poly_count;
   int *nodes_per_element_list = atom->nodes_per_element_list;
 
-  //copy nodal arrays to the continuous arrays for the min algorithm
-  copy_force();
-  nvec=atom->dense_count;
-  if (nvec) xvec = atom->min_x;
-  if (nvec) fvec = atom->min_f;
-
   alpha_final = 0.0;
-
-  nvec=atom->dense_count; //needed for setup step so nvec isn't zero
-  if (nvec) xvec = atom->min_x;
-  if (nvec) fvec = atom->min_f;
 
   for (int iter = 0; iter < maxiter; iter++) {
 
@@ -129,16 +103,16 @@ int CACMinFire::iterate(int maxiter)
     ntimestep = ++update->ntimestep;
     niter++;
 
-    // vdotfall = v dot f
+    // zero velocity if anti-parallel to force
+    // else project velocity in direction of force
 
     double *f = atom->min_f;
     double *v = atom->min_v;
     nvec=atom->dense_count;
 
     vdotf = 0.0;
-    for (i = 0; i < nvec; i+=3) {
-      vdotf += v[i]*f[i] + v[i+1]*f[i+1] + v[i+2]*f[i+2];
-    }
+    for (int i = 0; i < nvec; i+=3)
+      vdotf += v[i]*f[i] + v[i]*f[i] + v[i]*f[i];
     MPI_Allreduce(&vdotf,&vdotfall,1,MPI_DOUBLE,MPI_SUM,world);
 
     // sum vdotf over replicas, if necessary
@@ -149,31 +123,15 @@ int CACMinFire::iterate(int maxiter)
       MPI_Allreduce(&vdotf,&vdotfall,1,MPI_DOUBLE,MPI_SUM,universe->uworld);
     }
 
-    // if (v dot f) > 0:
-    // v = (1-alpha) v + alpha |v| Fhat
-    // |v| = length of v, Fhat = unit f
-    // if more than DELAYSTEP since v dot f was negative:
-    // increase timestep and decrease alpha
+    if (vdotfall < 0.0) {
+      last_negative = ntimestep;
+      for (int i = 0; i < nvec; i+=3)
+        v[i] = v[i+1] = v[i+2] = 0.0;
 
-    if (vdotfall > 0.0) {
-      vdotv = 0.0;
-      for (i = 0; i < nvec; i+=3) {
-        vdotv += v[i]*v[i] + v[i+1]*v[i+1] + v[i+2]*v[i+2];
-      }
-      MPI_Allreduce(&vdotv,&vdotvall,1,MPI_DOUBLE,MPI_SUM,world);
-
-      // sum vdotv over replicas, if necessary
-      // this communicator would be invalid for multiprocess replicas
-
-      if (update->multireplica == 1) {
-        vdotv = vdotvall;
-        MPI_Allreduce(&vdotv,&vdotvall,1,MPI_DOUBLE,MPI_SUM,universe->uworld);
-      }
-
+    } else {
       fdotf = 0.0;
-      for (i = 0; i < nvec; i+=3) {
-        fdotf += f[i]*f[i] + f[i+1]*f[i+1] + f[i+2]*f[i+2];
-      }
+      for (int i = 0; i < nvec; i+=3)
+        fdotf += f[i]*f[i] + f[i]*f[i] + f[i]*f[i];
       MPI_Allreduce(&fdotf,&fdotfall,1,MPI_DOUBLE,MPI_SUM,world);
 
       // sum fdotf over replicas, if necessary
@@ -184,29 +142,12 @@ int CACMinFire::iterate(int maxiter)
         MPI_Allreduce(&fdotf,&fdotfall,1,MPI_DOUBLE,MPI_SUM,universe->uworld);
       }
 
-      scale1 = 1.0 - alpha;
-      if (fdotfall == 0.0) scale2 = 0.0;
-      else scale2 = alpha * sqrt(vdotvall/fdotfall);
-      for (i = 0; i < nvec; i+=3) {
-        v[i] =  scale1*v[i] + scale2*f[i];
-        v[i+1] =  scale1*v[i+1] + scale2*f[i+1];
-        v[i+2] =  scale1*v[i+2] + scale2*f[i+2];
-      }
-
-      if (ntimestep - last_negative > DELAYSTEP) {
-        dt = MIN(dt*DT_GROW,dtmax);
-        alpha *= ALPHA_SHRINK;
-      }
-
-    // else (v dot f) <= 0:
-    // decrease timestep, reset alpha, set v = 0
-
-    } else {
-      last_negative = ntimestep;
-      dt *= DT_SHRINK;
-      alpha = ALPHA0;
-      for (i = 0; i < nvec; i+=3) {
-        v[i] =  v[i+1] = v[i+2] = 0.0;
+      if (fdotfall == 0.0) scale = 0.0;
+      else scale = vdotfall/fdotfall;
+      for (int i = 0; i < nvec; i+=3) {
+        v[i] = scale*f[i];
+        v[i+1] = scale*f[i+1];
+        v[i+2] = scale*f[i+2];
       }
     }
 
@@ -220,7 +161,7 @@ int CACMinFire::iterate(int maxiter)
 
     for (int i = 0; i < nvec; i+=3) {
       vmax = MAX(fabs(v[i]),fabs(v[i+1]));
-      vmax = MAX(vmax,fabs(v[i+2]));
+      vmax = MAX(vmax,fabs(v[i+3]));
       if (dtvone*vmax > dmax) dtvone = dmax/vmax;
     }
     MPI_Allreduce(&dtvone,&dtv,1,MPI_DOUBLE,MPI_MIN,world);
@@ -244,7 +185,6 @@ int CACMinFire::iterate(int maxiter)
         dtfm = dtf / rmass[i];
         x[i] += dtv * v[i];
         v[i] += dtfm * f[i];
-
       }
     } else {
         int dense = 0;
@@ -266,7 +206,6 @@ int CACMinFire::iterate(int maxiter)
           }
         }
     }
-
 
     eprevious = ecurrent;
     ecurrent = energy_force(0);
@@ -318,12 +257,7 @@ int CACMinFire::iterate(int maxiter)
   return MAXITER;
 }
 
-
-/* ----------------------------------------------------------------------
-   copy dense arrays to atomvec arrays for energy_force evaluation
-------------------------------------------------------------------------- */
-
-void CACMinFire::copy_vectors(){
+void CACMinQuickMin::copy_vectors(){
   int *npoly = atom->poly_count;
   int *nodes_per_element_list = atom->nodes_per_element_list;
   int *element_type = atom->element_type;
@@ -384,7 +318,7 @@ void CACMinFire::copy_vectors(){
    copy atomvec arrays to continuous arrays after energy_force evaluation
 ------------------------------------------------------------------------- */
 
-void CACMinFire::copy_force(){
+void CACMinQuickMin::copy_force(){
   int *npoly = atom->poly_count;
   int *nodes_per_element_list = atom->nodes_per_element_list;
   int *element_type = atom->element_type;
@@ -402,9 +336,9 @@ void CACMinFire::copy_force(){
   
   //grow the dense aligned vectors
   if(atom->dense_count>densemax){
-  min_x = memory->grow(atom->min_x,atom->dense_count,"min_CAC_fire:min_x");
-  min_v = memory->grow(atom->min_v,atom->dense_count,"min_CAC_fire:min_v");
-  min_f = memory->grow(atom->min_f,atom->dense_count,"min_CAC_fire:min_f");
+  min_x = memory->grow(atom->min_x,atom->dense_count,"min_CAC_quickmin:min_x");
+  min_v = memory->grow(atom->min_v,atom->dense_count,"min_CAC_quickmin:min_v");
+  min_f = memory->grow(atom->min_f,atom->dense_count,"min_CAC_quickmin:min_f");
   densemax=atom->dense_count;
   }
 
