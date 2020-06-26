@@ -10,36 +10,26 @@
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
-#ifdef MINIMIZE_CLASS
 
-MinimizeStyle(cac/fire,CACMinFire)
+#ifdef COMMAND_CLASS
+
+CommandStyle(reset_initial_nodes,ResetInitialNodes)
 
 #else
 
-#ifndef LMP_CAC_MIN_FIRE_H
-#define LMP_CAC_MIN_FIRE_H
+#ifndef LMP_RESET_INITIAL_NODES_H
+#define LMP_RESET_INITIAL_NODES_H
 
-#include "min_cac.h"
+#include "pointers.h"
 
 namespace LAMMPS_NS {
 
-class CACMinFire : public CACMin {
+class ResetInitialNodes : protected Pointers {
  public:
-  CACMinFire(class LAMMPS *);
-  ~CACMinFire() {}
-  void init();
-  void setup_style();
-  void reset_vectors();
-  virtual int iterate(int);
- protected:
-  int densemax;               // bounds arrays size for continuous x,v,f nodal arrays
+  ResetInitialNodes(class LAMMPS *);
+  void command(int, char **);
 
-  virtual void copy_vectors();
-  virtual void copy_force();
  private:
-  double dt,dtmax;
-  double alpha;
-  bigint last_negative;
 };
 
 }
@@ -49,12 +39,20 @@ class CACMinFire : public CACMin {
 
 /* ERROR/WARNING messages:
 
-E: CAC min styles require a CAC atom style
+E: Reset_ids command before simulation box is defined
 
-Self Explanatory
+UNDOCUMENTED
 
-E: CAC min styles require a CAC pair style
+E: Illegal ... command
 
-Self Explanatory
+UNDOCUMENTED
+
+E: Cannot use reset_ids unless atoms have IDs
+
+UNDOCUMENTED
+
+E: Reset_ids missing %d bond topology atom IDs - use comm_modify cutoff
+
+UNDOCUMENTED
 
 */
