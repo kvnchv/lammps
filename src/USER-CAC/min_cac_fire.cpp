@@ -332,11 +332,9 @@ void CACMinFire::copy_vectors(){
   double ****nodal_positions = atom->nodal_positions;
   double ****nodal_velocities = atom->nodal_velocities;
   double ****nodal_forces = atom->nodal_forces;
-  double ****nodal_velocities = atom->nodal_velocities;
   double *min_x = atom->min_x;
   double *min_v = atom->min_v;
   double *min_f = atom->min_f;
-  double *min_v = atom->min_v;
   double **x = atom->x;
   double **v = atom->v;
   int nodes_per_element;
@@ -345,7 +343,6 @@ void CACMinFire::copy_vectors(){
   int dense_count_x=0;
   int dense_count_v=0;
   int dense_count_f=0;
-  int dense_count_v=0;
   for(int element_counter=0; element_counter < atom->nlocal; element_counter++){
     for(int poly_counter=0; poly_counter < npoly[element_counter]; poly_counter++){
       for(int node_counter=0; node_counter < nodes_per_element_list[element_type[element_counter]]; node_counter++){

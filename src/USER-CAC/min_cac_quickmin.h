@@ -20,11 +20,11 @@ MinimizeStyle(cac/quickmin,CACMinQuickMin)
 #ifndef LMP_CAC_MIN_QUICKMIN_H
 #define LMP_CAC_MIN_QUICKMIN_H
 
-#include "min.h"
+#include "min_cac.h"
 
 namespace LAMMPS_NS {
 
-class CACMinQuickMin : public Min {
+class CACMinQuickMin : public CACMin {
  public:
   CACMinQuickMin(class LAMMPS *);
   ~CACMinQuickMin() {}

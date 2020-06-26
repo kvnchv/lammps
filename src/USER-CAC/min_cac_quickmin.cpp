@@ -33,13 +33,14 @@ using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-CACMinQuickMin::CACMinQuickMin(LAMMPS *lmp) : Min(lmp) {}
+CACMinQuickMin::CACMinQuickMin(LAMMPS *lmp) : CACMin(lmp) {}
 
 /* ---------------------------------------------------------------------- */
 
 void CACMinQuickMin::init()
 {
   Min::init();
+  CACMin::init(); 
   if (!atom->CAC_flag) error->all(FLERR,"CAC min styles require a CAC atom style");
   if (!atom->CAC_pair_flag) error->all(FLERR,"CAC min styles require a CAC pair style");
   dt = update->dt;
@@ -268,6 +269,7 @@ void CACMinQuickMin::copy_vectors(){
   double *min_f = atom->min_f;
   double *min_v = atom->min_v;
   double **x = atom->x;
+  double **v = atom->v;
   int nodes_per_element;
 
   //copy contents to these vectors
@@ -293,22 +295,30 @@ void CACMinQuickMin::copy_vectors(){
     // update x for elements and atoms using nodal variables
   for (int i = 0; i < atom->nlocal; i++){
     //determine element type
-
     nodes_per_element=nodes_per_element_list[element_type[i]];
     x[i][0] = 0;
     x[i][1] = 0;
     x[i][2] = 0;
+    v[i][0] = 0;
+    v[i][1] = 0;
+    v[i][2] = 0;
 
     for (int poly_counter = 0; poly_counter < npoly[i];poly_counter++) {
       for(int k=0; k<nodes_per_element; k++){
         x[i][0] += nodal_positions[i][poly_counter][k][0];
         x[i][1] += nodal_positions[i][poly_counter][k][1];
         x[i][2] += nodal_positions[i][poly_counter][k][2];
+        v[i][0] += nodal_velocities[i][poly_counter][k][0];
+        v[i][1] += nodal_velocities[i][poly_counter][k][1];
+        v[i][2] += nodal_velocities[i][poly_counter][k][2];
       }
     }
   x[i][0] = x[i][0] / nodes_per_element / npoly[i];
   x[i][1] = x[i][1] / nodes_per_element / npoly[i];
   x[i][2] = x[i][2] / nodes_per_element / npoly[i];
+  v[i][0] = v[i][0] / nodes_per_element / npoly[i];
+  v[i][1] = v[i][1] / nodes_per_element / npoly[i];
+  v[i][2] = v[i][2] / nodes_per_element / npoly[i];
   }
 
 }

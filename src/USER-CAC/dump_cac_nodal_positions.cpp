@@ -231,15 +231,15 @@ void DumpCACNodalPositions::pack(tagint *ids)
       buf[m++] = double(element_scale[i][1]);
       buf[m++] = double(element_scale[i][2]);
 
-    for (int k = 0; k < poly_count[i]; k++) {
-      for (int j = 0; j < nodes_per_element_list[element_type[i]]; j++) {
-        buf[m++] = double(j + 1);
-        buf[m++] = double(k + 1);
-        buf[m++] = double(node_types[i][k]);
-        buf[m++] = nodal_positions[i][k][j][0];
-        buf[m++] = nodal_positions[i][k][j][1];
-        buf[m++] = nodal_positions[i][k][j][2];
-      }
+      for (int k = 0; k < poly_count[i]; k++) {
+        for (int j = 0; j < nodes_per_element_list[element_type[i]]; j++) {
+          buf[m++] = double(j + 1);
+          buf[m++] = double(k + 1);
+          buf[m++] = double(node_types[i][k]);
+          buf[m++] = nodal_positions[i][k][j][0];
+          buf[m++] = nodal_positions[i][k][j][1];
+          buf[m++] = nodal_positions[i][k][j][2];
+        }
       }
     }
   }
