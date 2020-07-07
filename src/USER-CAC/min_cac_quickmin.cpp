@@ -33,7 +33,10 @@ using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-CACMinQuickMin::CACMinQuickMin(LAMMPS *lmp) : CACMin(lmp) {}
+CACMinQuickMin::CACMinQuickMin(LAMMPS *lmp) : CACMin(lmp) {
+  copy_flag = force_copy_flag = 1;
+  densemax=0;
+}
 
 /* ---------------------------------------------------------------------- */
 
@@ -94,8 +97,13 @@ int CACMinQuickMin::iterate(int maxiter)
   int *npoly = atom->poly_count;
   int *nodes_per_element_list = atom->nodes_per_element_list;
 
-  alpha_final = 0.0;
+  copy_force(); 
+  nvec=atom->dense_count;
+  if (nvec) xvec = atom->min_x;
+  if (nvec) fvec = atom->min_f;
 
+  alpha_final = 0.0;
+  
   for (int iter = 0; iter < maxiter; iter++) {
 
     if (timer->check_timeout(niter))
@@ -113,7 +121,7 @@ int CACMinQuickMin::iterate(int maxiter)
 
     vdotf = 0.0;
     for (int i = 0; i < nvec; i+=3)
-      vdotf += v[i]*f[i] + v[i]*f[i] + v[i]*f[i];
+      vdotf += v[i]*f[i] + v[i+1]*f[i+1] + v[i+2]*f[i+2];
     MPI_Allreduce(&vdotf,&vdotfall,1,MPI_DOUBLE,MPI_SUM,world);
 
     // sum vdotf over replicas, if necessary
@@ -132,7 +140,7 @@ int CACMinQuickMin::iterate(int maxiter)
     } else {
       fdotf = 0.0;
       for (int i = 0; i < nvec; i+=3)
-        fdotf += f[i]*f[i] + f[i]*f[i] + f[i]*f[i];
+        fdotf += f[i]*f[i] + f[i+1]*f[i+1] + f[i+2]*f[i+2];
       MPI_Allreduce(&fdotf,&fdotfall,1,MPI_DOUBLE,MPI_SUM,world);
 
       // sum fdotf over replicas, if necessary
