@@ -220,6 +220,7 @@ void AtomVecCAC::shrink_array(int n)
   if(n>nmax)
   error->one(FLERR, "resize function is called to shrink atom arrays; use grow instead");
   atom->nmax=nmax=n;
+  if(nmax==0) atom->nmax = nmax = 1;
   tag = memory->grow(atom->tag,nmax,"atom:tag");
   type = memory->grow(atom->type,nmax,"atom:type");
   mask = memory->grow(atom->mask,nmax,"atom:mask");
@@ -232,7 +233,7 @@ void AtomVecCAC::shrink_array(int n)
   element_scale = memory->grow(atom->element_scale, nmax,3, "atom:element_scales");
 
   //deallocate element contents if n is smaller than the alloc counter for elements
-  for(int element_index=alloc_counter-1; element_index >= n; element_index--){
+  for(int element_index=alloc_counter-1; element_index >= nmax; element_index--){
   memory->destroy(node_types[element_index]);
   memory->destroy(nodal_positions[element_index]);
   memory->destroy(hold_nodal_positions[element_index]);
@@ -241,8 +242,8 @@ void AtomVecCAC::shrink_array(int n)
   memory->destroy(nodal_forces[element_index]);
   memory->destroy(nodal_virial[element_index]);
   }
-  if(alloc_counter>n)
-  alloc_counter = n;
+  if(alloc_counter>nmax)
+  alloc_counter = nmax;
 
   //shrink pointer arrays
   atom->node_types = node_types = (int **) memory->srealloc(node_types,sizeof(int *)*nmax, "atom:node_types");
@@ -258,7 +259,7 @@ void AtomVecCAC::shrink_array(int n)
     (double ****) memory->srealloc(nodal_forces,sizeof(double ***)*nmax, "atom:nodal_forces");
   atom->nodal_virial = nodal_virial =
     (double ****) memory->srealloc(nodal_virial,sizeof(double ***)*nmax, "atom:nodal_virial");
-  CAC_nmax = n;
+  CAC_nmax = nmax;
 
   if (atom->nextra_grow)
     for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -1551,7 +1552,7 @@ void AtomVecCAC::data_atom(double *coord, imageint imagetmp, char **values)
   tag[nlocal] = ATOTAGINT(values[0]);
   char* element_type_read;
   element_type_read = values[1];
-  type[nlocal] = 1;
+  type[nlocal] = 0;
 
   npoly = force->inumeric(FLERR,values[2]);
   if (npoly > maxpoly)
@@ -1644,6 +1645,10 @@ void AtomVecCAC::data_atom(double *coord, imageint imagetmp, char **values)
     nodal_forces[nlocal][poly_index][node_index][2] = 0;
     }
   }
+  
+  //set type equal to node_type in the case of atoms
+  if(element_type[nlocal]==0)
+  type[nlocal] = node_types[nlocal][0];
 
   x[nlocal][0] = coord[0];
   x[nlocal][1] = coord[1];
@@ -1670,9 +1675,9 @@ void AtomVecCAC::pack_data(double **buf)
   int nlocal = atom->nlocal;
   int *nodes_count_list = atom->nodes_per_element_list;
   for (int i = 0; i < nlocal; i++) {
-       int m=0;
-    buf[i][m++] = ubuf(tag[i]).d;
-    buf[i][m++] = ubuf(type[i]).d;
+  int m=0;
+  buf[i][m++] = ubuf(tag[i]).d;
+  buf[i][m++] = ubuf(type[i]).d;
   buf[i][m++] = element_type[i];
   buf[i][m++] = element_scale[i][0];
   buf[i][m++] = element_scale[i][1];
