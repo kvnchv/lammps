@@ -19,6 +19,7 @@
 #include "error.h"
 #include "memory.h"
 #include "update.h"
+#include "domain.h"
 
 using namespace LAMMPS_NS;
 
@@ -184,16 +185,16 @@ void DumpCACNodalPositions::write_header(bigint n)
 {
 
   if (me == 0) {
-  fprintf(fp, "# t= " BIGINT_FORMAT " n= " BIGINT_FORMAT
-  " e= " BIGINT_FORMAT " Q4 " "\n",
-  update->ntimestep, (bigint)total_node_count, total_element_count);
-  fprintf(fp, "%d cac elements\n", total_element_count);
-  fprintf(fp,"%d atom types\n\n",atom->ntypes);
+    fprintf(fp, "# t= " BIGINT_FORMAT " n= " BIGINT_FORMAT
+    " e= " BIGINT_FORMAT " Q4 " "\n",
+    update->ntimestep, (bigint)total_node_count, total_element_count);
+    
+    fprintf(fp, "%d cac elements\n", total_element_count);
+    fprintf(fp,"%d atom types\n\n",atom->ntypes);
 
-  fprintf(fp,"%-1.16e %-1.16e xlo xhi\n",domain->boxlo[0],domain->boxhi[0]);
-  fprintf(fp,"%-1.16e %-1.16e ylo yhi\n",domain->boxlo[1],domain->boxhi[1]);
-  fprintf(fp,"%-1.16e %-1.16e zlo zhi\n",domain->boxlo[2],domain->boxhi[2]);
-
+    fprintf(fp,"%-1.16e %-1.16e xlo xhi\n",domain->boxlo[0],domain->boxhi[0]);
+    fprintf(fp,"%-1.16e %-1.16e ylo yhi\n",domain->boxlo[1],domain->boxhi[1]);
+    fprintf(fp,"%-1.16e %-1.16e zlo zhi\n",domain->boxlo[2],domain->boxhi[2]);
 
     if (atom->mass) {
       double *mass = atom->mass;
