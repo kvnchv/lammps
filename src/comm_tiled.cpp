@@ -53,6 +53,7 @@ CommTiled::CommTiled(LAMMPS *lmp) : Comm(lmp)
   overlap = nullptr;
   rcbinfo = nullptr;
   cutghostmulti = nullptr;
+  comm_style = (const char *)"tiled";
   init_buffers();
 }
 

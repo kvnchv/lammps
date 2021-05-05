@@ -16,7 +16,6 @@
 ------------------------------------------------------------------------- */
 
 #include "fix_box_relax.h"
-
 #include "atom.h"
 #include "comm.h"
 #include "compute.h"

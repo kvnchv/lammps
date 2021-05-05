@@ -82,7 +82,7 @@ Packages howto
    Howto_drude2
    Howto_manifold
    Howto_spins
-
+   Howto_cac
 Tutorials howto
 ===============
 
@@ -94,4 +94,3 @@ Tutorials howto
    Howto_github
    Howto_pylammps
    Howto_wsl
-

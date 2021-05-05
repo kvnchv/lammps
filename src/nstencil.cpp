@@ -64,6 +64,7 @@ NStencil::NStencil(LAMMPS *lmp) : Pointers(lmp)
   nstencil_multi = nullptr;
   stencil_multi = nullptr;
   distsq_multi = nullptr;
+  post_create_flag = 0;
 
   dimension = domain->dimension;
 }

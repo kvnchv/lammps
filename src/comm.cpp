@@ -60,6 +60,7 @@ Comm::Comm(LAMMPS *lmp) : Pointers(lmp)
   cutusermulti = nullptr;
   ghost_velocity = 0;
 
+  comm_style = NULL;
   user_procgrid[0] = user_procgrid[1] = user_procgrid[2] = 0;
   coregrid[0] = coregrid[1] = coregrid[2] = 1;
   gridflag = ONELEVEL;
@@ -154,6 +155,9 @@ void Comm::copy_arrays(Comm *oldcomm)
 
   if (outfile)
     outfile = utils::strdup(oldcomm->outfile);
+
+  maxexchange_atom = oldcomm->maxexchange_atom;
+  maxexchange_fix = oldcomm->maxexchange_fix;
 }
 
 /* ----------------------------------------------------------------------
