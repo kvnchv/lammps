@@ -1,6 +1,6 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
-   http://lammps.sandia.gov, Sandia National Laboratories
+   https://lammps.sandia.gov/, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
@@ -38,6 +38,7 @@ class PairSpinNeel : public PairSpin {
 
   void compute_neel(int, int, double, double *, double *, double *, double *);
   void compute_neel_mech(int, int, double, double *, double *, double *, double *);
+  double compute_neel_energy(int, int, double, double *, double *, double *);
 
   void write_restart(FILE *);
   void read_restart(FILE *);

@@ -20,11 +20,7 @@ force field.
 
 .. _charmm: http://www.scripps.edu/brooks
 
-
-
 .. _amber: http://amber.scripps.edu
-
-
 
 The interaction styles listed below compute force field formulas that
 are consistent with common options in CHARMM or AMBER.  See each
@@ -95,6 +91,7 @@ documentation for the formula it computes.
 * :doc:`bond_style <bond_harmonic>` harmonic
 * :doc:`bond_style <bond_morse>` morse
 
+* :doc:`angle_style <angle_cosine_squared>` cosine/squared
 * :doc:`angle_style <angle_harmonic>` harmonic
 * :doc:`angle_style <angle_cosine>` cosine
 * :doc:`angle_style <angle_cosine_periodic>` cosine/periodic
@@ -106,46 +103,31 @@ documentation for the formula it computes.
 * :doc:`pair_style <pair_buck>` buck/coul/cut
 * :doc:`pair_style <pair_buck>` buck/coul/long
 * :doc:`pair_style <pair_lj>` lj/cut
-* :doc:`pair_style <pair_lj>` lj/cut/coul/cut
-* :doc:`pair_style <pair_lj>` lj/cut/coul/long
+* :doc:`pair_style <pair_lj_cut_coul>` lj/cut/coul/cut
+* :doc:`pair_style <pair_lj_cut_coul>` lj/cut/coul/long
 
 * :doc:`pair_style <pair_hbond_dreiding>` hbond/dreiding/lj
 * :doc:`pair_style <pair_hbond_dreiding>` hbond/dreiding/morse
 
 * :doc:`special_bonds <special_bonds>` dreiding
 
-
 ----------
 
-
 .. _howto-MacKerell:
-
-
 
 **(MacKerell)** MacKerell, Bashford, Bellott, Dunbrack, Evanseck, Field,
 Fischer, Gao, Guo, Ha, et al, J Phys Chem, 102, 3586 (1998).
 
 .. _howto-Cornell:
 
-
-
 **(Cornell)** Cornell, Cieplak, Bayly, Gould, Merz, Ferguson,
 Spellmeyer, Fox, Caldwell, Kollman, JACS 117, 5179-5197 (1995).
 
 .. _howto-Sun:
 
-
-
 **(Sun)** Sun, J. Phys. Chem. B, 102, 7338-7364 (1998).
 
 .. _howto-Mayo:
 
-
-
 **(Mayo)** Mayo, Olfason, Goddard III, J Phys Chem, 94, 8897-8909
 (1990).
-
-
-.. _lws: http://lammps.sandia.gov
-.. _ld: Manual.html
-.. _lc: Commands_all.html

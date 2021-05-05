@@ -1,6 +1,6 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
-   http://lammps.sandia.gov, Sandia National Laboratories
+   https://lammps.sandia.gov/, Sandia National Laboratories
    Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
@@ -16,35 +16,36 @@
                         improved CG and backtrack ls, added quadratic ls
    Sources: Numerical Recipes frprmn routine
             "Conjugate Gradient Method Without the Agonizing Pain" by
-            JR Shewchuk, http://www-2.cs.cmu.edu/~jrs/jrspapers.html#cg
+            JR Shewchuk, https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf
 ------------------------------------------------------------------------- */
 
 #include "min.h"
-#include <mpi.h>
-#include <cmath>
-#include <cstring>
+
+#include "angle.h"
 #include "atom.h"
 #include "atom_vec.h"
-#include "domain.h"
-#include "comm.h"
-#include "update.h"
-#include "modify.h"
-#include "fix_minimize.h"
-#include "compute.h"
-#include "neighbor.h"
-#include "force.h"
-#include "pair.h"
 #include "bond.h"
-#include "angle.h"
+#include "comm.h"
+#include "compute.h"
 #include "dihedral.h"
+#include "domain.h"
+#include "error.h"
+#include "fix_minimize.h"
+#include "force.h"
 #include "improper.h"
 #include "kspace.h"
-#include "output.h"
-#include "thermo.h"
-#include "timer.h"
 #include "math_const.h"
 #include "memory.h"
-#include "error.h"
+#include "modify.h"
+#include "neighbor.h"
+#include "output.h"
+#include "pair.h"
+#include "thermo.h"
+#include "timer.h"
+#include "update.h"
+
+#include <cmath>
+#include <cstring>
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
@@ -58,17 +59,30 @@ Min::Min(LAMMPS *lmp) : Pointers(lmp)
   linestyle = 1;
   normstyle = TWO;
 
-  elist_global = elist_atom = NULL;
-  vlist_global = vlist_atom = cvlist_atom = NULL;
+  delaystep = 20;
+  dtgrow = 1.1;
+  dtshrink = 0.5;
+  alpha0 = 0.25;
+  alphashrink = 0.99;
+  tmax = 10.0;
+  tmin = 0.02;
+  integrator = 0;
+  halfstepback_flag = 1;
+  delaystep_start_flag = 1;
+  max_vdotf_negatif = 2000;
+  alpha_final = 0.0;
+
+  elist_global = elist_atom = nullptr;
+  vlist_global = vlist_atom = cvlist_atom = nullptr;
 
   nextra_global = 0;
-  fextra = NULL;
+  fextra = nullptr;
 
   nextra_atom = 0;
-  xextra_atom = fextra_atom = NULL;
-  extra_peratom = extra_nlen = NULL;
-  extra_max = NULL;
-  requestor = NULL;
+  xextra_atom = fextra_atom = nullptr;
+  extra_peratom = extra_nlen = nullptr;
+  extra_max = nullptr;
+  requestor = nullptr;
 
   external_force_clear = 0;
 
@@ -100,18 +114,13 @@ Min::~Min()
 void Min::init()
 {
   if (lmp->kokkos && !kokkosable)
-    error->all(FLERR,"Must use a Kokkos-enabled min style (e.g. min_style cg/kk) "
-     "with Kokkos minimize");
+    error->all(FLERR,"Must use a Kokkos-enabled min style "
+               "(e.g. min_style cg/kk) with Kokkos minimize");
 
   // create fix needed for storing atom-based quantities
   // will delete it at end of run
 
-  char **fixarg = new char*[3];
-  fixarg[0] = (char *) "MINIMIZE";
-  fixarg[1] = (char *) "all";
-  fixarg[2] = (char *) "MINIMIZE";
-  modify->add_fix(3,fixarg);
-  delete [] fixarg;
+  modify->add_fix("MINIMIZE all MINIMIZE");
   fix_minimize = (FixMinimize *) modify->fix[modify->nfix-1];
 
   // clear out extra global and per-atom dof
@@ -120,7 +129,7 @@ void Min::init()
 
   nextra_global = 0;
   delete [] fextra;
-  fextra = NULL;
+  fextra = nullptr;
 
   nextra_atom = 0;
   memory->sfree(xextra_atom);
@@ -129,17 +138,18 @@ void Min::init()
   memory->destroy(extra_nlen);
   memory->destroy(extra_max);
   memory->sfree(requestor);
-  xextra_atom = fextra_atom = NULL;
-  extra_peratom = extra_nlen = NULL;
-  extra_max = NULL;
-  requestor = NULL;
+  xextra_atom = fextra_atom = nullptr;
+  extra_peratom = extra_nlen = nullptr;
+  extra_max = nullptr;
+  requestor = nullptr;
 
   // virial_style:
-  // 1 if computed explicitly by pair->compute via sum over pair interactions
-  // 2 if computed implicitly by pair->virial_compute via sum over ghost atoms
+  // VIRIAL_PAIR if computed explicitly in pair via sum over pair interactions
+  // VIRIAL_FDOTR if computed implicitly in pair by
+  //   virial_fdotr_compute() via sum over ghosts
 
-  if (force->newton_pair) virial_style = 2;
-  else virial_style = 1;
+  if (force->newton_pair) virial_style = VIRIAL_FDOTR;
+  else virial_style = VIRIAL_PAIR;
 
   // setup lists of computes for global and per-atom PE and pressure
 
@@ -184,6 +194,10 @@ void Min::init()
   neighbor->dist_check = 1;
 
   niter = neval = 0;
+
+  // store timestep size (important for variable timestep minimizer)
+
+  dtinit = update->dt;
 }
 
 /* ----------------------------------------------------------------------
@@ -193,12 +207,11 @@ void Min::init()
 void Min::setup(int flag)
 {
   if (comm->me == 0 && screen) {
-    fprintf(screen,"Setting up %s style minimization ...\n",
-            update->minimize_style);
+    fmt::print(screen,"Setting up {} style minimization ...\n",
+               update->minimize_style);
     if (flag) {
-      fprintf(screen,"  Unit style    : %s\n", update->unit_style);
-      fprintf(screen,"  Current step  : " BIGINT_FORMAT "\n",
-              update->ntimestep);
+      fmt::print(screen,"  Unit style    : {}\n", update->unit_style);
+      fmt::print(screen,"  Current step  : {}\n", update->ntimestep);
       timer->print_timeout(screen);
     }
   }
@@ -233,7 +246,7 @@ void Min::setup(int flag)
 
   bigint ndofme = 3 * static_cast<bigint>(atom->nlocal);
   for (int m = 0; m < nextra_atom; m++)
-    ndofme += extra_peratom[m]*atom->nlocal;
+    ndofme += extra_peratom[m]*static_cast<bigint>(atom->nlocal);
   MPI_Allreduce(&ndofme,&ndoftotal,1,MPI_LMP_BIGINT,MPI_SUM,world);
   ndoftotal += nextra_global;
 
@@ -291,7 +304,7 @@ void Min::setup(int flag)
   if (pair_compute_flag) force->pair->compute(eflag,vflag);
   else if (force->pair) force->pair->compute_dummy(eflag,vflag);
 
-  if (atom->molecular) {
+  if (atom->molecular != Atom::ATOMIC) {
     if (force->bond) force->bond->compute(eflag,vflag);
     if (force->angle) force->angle->compute(eflag,vflag);
     if (force->dihedral) force->dihedral->compute(eflag,vflag);
@@ -325,7 +338,7 @@ void Min::setup(int flag)
 
   einitial = ecurrent;
   fnorm2_init = sqrt(fnorm_sqr());
-  fnorminf_init = fnorm_inf();
+  fnorminf_init = sqrt(fnorm_inf());
 }
 
 /* ----------------------------------------------------------------------
@@ -373,7 +386,7 @@ void Min::setup_minimal(int flag)
   if (pair_compute_flag) force->pair->compute(eflag,vflag);
   else if (force->pair) force->pair->compute_dummy(eflag,vflag);
 
-  if (atom->molecular) {
+  if (atom->molecular != Atom::ATOMIC) {
     if (force->bond) force->bond->compute(eflag,vflag);
     if (force->angle) force->angle->compute(eflag,vflag);
     if (force->dihedral) force->dihedral->compute(eflag,vflag);
@@ -406,7 +419,7 @@ void Min::setup_minimal(int flag)
 
   einitial = ecurrent;
   fnorm2_init = sqrt(fnorm_sqr());
-  fnorminf_init = fnorm_inf();
+  fnorminf_init = sqrt(fnorm_inf());
 }
 
 /* ----------------------------------------------------------------------
@@ -461,7 +474,7 @@ void Min::cleanup()
 
   efinal = ecurrent;
   fnorm2_final = sqrt(fnorm_sqr());
-  fnorminf_final = fnorm_inf();
+  fnorminf_final = sqrt(fnorm_inf());
 
   // reset reneighboring criteria
 
@@ -473,6 +486,10 @@ void Min::cleanup()
 
   modify->delete_fix("MINIMIZE");
   domain->box_too_small_check();
+
+  // reset timestep size (important for variable timestep minimizer)
+
+  update->dt = dtinit;
 }
 
 /* ----------------------------------------------------------------------
@@ -541,7 +558,7 @@ double Min::energy_force(int resetflag)
     timer->stamp(Timer::PAIR);
   }
 
-  if (atom->molecular) {
+  if (atom->molecular != Atom::ATOMIC) {
     if (force->bond) force->bond->compute(eflag,vflag);
     if (force->angle) force->angle->compute(eflag,vflag);
     if (force->dihedral) force->dihedral->compute(eflag,vflag);
@@ -656,7 +673,59 @@ void Min::modify_params(int narg, char **arg)
   while (iarg < narg) {
     if (strcmp(arg[iarg],"dmax") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
-      dmax = force->numeric(FLERR,arg[iarg+1]);
+      dmax = utils::numeric(FLERR,arg[iarg+1],false,lmp);
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"delaystep") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      delaystep = utils::numeric(FLERR,arg[iarg+1],false,lmp);
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"dtgrow") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      dtgrow = utils::numeric(FLERR,arg[iarg+1],false,lmp);
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"dtshrink") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      dtshrink = utils::numeric(FLERR,arg[iarg+1],false,lmp);
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"alpha0") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      alpha0 = utils::numeric(FLERR,arg[iarg+1],false,lmp);
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"alphashrink") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      alphashrink = utils::numeric(FLERR,arg[iarg+1],false,lmp);
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"tmax") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      tmax = utils::numeric(FLERR,arg[iarg+1],false,lmp);
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"tmin") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      tmin = utils::numeric(FLERR,arg[iarg+1],false,lmp);
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"halfstepback") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      if (strcmp(arg[iarg+1],"yes") == 0) halfstepback_flag = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) halfstepback_flag = 0;
+      else error->all(FLERR,"Illegal min_modify command");
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"initialdelay") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      if (strcmp(arg[iarg+1],"yes") == 0) delaystep_start_flag = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) delaystep_start_flag = 0;
+      else error->all(FLERR,"Illegal min_modify command");
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"vdfmax") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      max_vdotf_negatif = utils::numeric(FLERR,arg[iarg+1],false,lmp);
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"integrator") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
+      if (strcmp(arg[iarg+1],"eulerimplicit") == 0) integrator = 0;
+      else if (strcmp(arg[iarg+1],"verlet") == 0) integrator = 1;
+      else if (strcmp(arg[iarg+1],"leapfrog") == 0) integrator = 2;
+      else if (strcmp(arg[iarg+1],"eulerexplicit") == 0) integrator = 3;
+      else error->all(FLERR,"Illegal min_modify command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"line") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal min_modify command");
@@ -693,8 +762,8 @@ void Min::ev_setup()
   delete [] vlist_global;
   delete [] vlist_atom;
   delete [] cvlist_atom;
-  elist_global = elist_atom = NULL;
-  vlist_global = vlist_atom = cvlist_atom = NULL;
+  elist_global = elist_atom = nullptr;
+  vlist_global = vlist_atom = cvlist_atom = nullptr;
 
   nelist_global = nelist_atom = 0;
   nvlist_global = nvlist_atom = ncvlist_atom = 0;
@@ -733,19 +802,16 @@ void Min::ev_setup()
    invoke matchstep() on all timestep-dependent computes to clear their arrays
    eflag/vflag based on computes that need info on this ntimestep
    always set eflag_global = 1, since need energy every iteration
-   eflag = 0 = no energy computation
-   eflag = 1 = global energy only
-   eflag = 2 = per-atom energy only
-   eflag = 3 = both global and per-atom energy
-   vflag = 0 = no virial computation (pressure)
-   vflag = 1 = global virial with pair portion via sum of pairwise interactions
-   vflag = 2 = global virial with pair portion via F dot r including ghosts
-   vflag = 4 = per-atom virial only
-   vflag = 5 or 6 = both global and per-atom virial
-   vflag = 8 = per-atom centroid virial only
-   vflag = 9 or 10 = both global and per-atom centroid virial
-   vflag = 12 = both per-atom virial and per-atom centroid virial
-   vflag = 13 or 15 = global, per-atom virial and per-atom centroid virial
+   eflag: set any or no bits
+     ENERGY_GLOBAL bit for global energy
+     ENERGY_ATOM   bit for per-atom energy
+   vflag: set any or no bits, but GLOBAL/FDOTR bit cannot both be set
+     VIRIAL_PAIR     bit for global virial as sum of pairwise terms
+     VIRIAL_FDOTR    bit for global virial via F dot r
+     VIRIAL_ATOM     bit for per-atom virial
+     VIRIAL_CENTROID bit for per-atom centroid virial
+   all force components (pair,bond,angle,...,kspace) use eflag/vflag
+     in their ev_setup() method to set local energy/virial flags
 ------------------------------------------------------------------------- */
 
 void Min::ev_set(bigint ntimestep)
@@ -760,7 +826,7 @@ void Min::ev_set(bigint ntimestep)
   int eflag_atom = 0;
   for (i = 0; i < nelist_atom; i++)
     if (elist_atom[i]->matchstep(ntimestep)) flag = 1;
-  if (flag) eflag_atom = 2;
+  if (flag) eflag_atom = ENERGY_ATOM;
 
   if (eflag_global) update->eflag_global = update->ntimestep;
   if (eflag_atom) update->eflag_atom = update->ntimestep;
@@ -776,13 +842,13 @@ void Min::ev_set(bigint ntimestep)
   int vflag_atom = 0;
   for (i = 0; i < nvlist_atom; i++)
     if (vlist_atom[i]->matchstep(ntimestep)) flag = 1;
-  if (flag) vflag_atom = 4;
+  if (flag) vflag_atom = VIRIAL_ATOM;
 
   flag = 0;
   int cvflag_atom = 0;
   for (i = 0; i < ncvlist_atom; i++)
     if (cvlist_atom[i]->matchstep(ntimestep)) flag = 1;
-  if (flag) cvflag_atom = 8;
+  if (flag) cvflag_atom = VIRIAL_CENTROID;
 
   if (vflag_global) update->vflag_global = update->ntimestep;
   if (vflag_atom || cvflag_atom) update->vflag_atom = update->ntimestep;
@@ -830,13 +896,13 @@ double Min::fnorm_inf()
 
   double local_norm_inf = 0.0;
   for (i = 0; i < nvec; i++)
-    local_norm_inf = MAX(fabs(fvec[i]),local_norm_inf);
+    local_norm_inf = MAX(fvec[i]*fvec[i],local_norm_inf);
   if (nextra_atom) {
     for (int m = 0; m < nextra_atom; m++) {
       fatom = fextra_atom[m];
       n = extra_nlen[m];
       for (i = 0; i < n; i++)
-        local_norm_inf = MAX(fabs(fatom[i]),local_norm_inf);
+        local_norm_inf = MAX(fatom[i]*fatom[i],local_norm_inf);
     }
   }
 
@@ -845,7 +911,7 @@ double Min::fnorm_inf()
 
   if (nextra_global)
     for (i = 0; i < nextra_global; i++)
-      norm_inf = MAX(fabs(fextra[i]),norm_inf);
+      norm_inf = MAX(fextra[i]*fextra[i],norm_inf);
 
   return norm_inf;
 }
@@ -999,6 +1065,7 @@ char *Min::stopstrings(int n)
                            "quadratic factors are zero",
                            "trust region too small",
                            "HFTN minimizer error",
-                           "walltime limit reached"};
+                           "walltime limit reached",
+                           "max iterations with v.f negative"};
   return (char *) strings[n];
 }

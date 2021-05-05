@@ -6,7 +6,6 @@ fix lb/rigid/pc/sphere command
 Syntax
 """"""
 
-
 .. parsed-literal::
 
    fix ID group-ID lb/rigid/pc/sphere bodystyle args keyword values ...
@@ -14,9 +13,9 @@ Syntax
 * ID, group-ID are documented in :doc:`fix <fix>` command
 * lb/rigid/pc/sphere = style name of this fix command
 * bodystyle = *single* or *molecule* or *group*
-  
+
   .. parsed-literal::
-  
+
        *single* args = none
        *molecule* args = none
        *group* args = N groupID1 groupID2 ...
@@ -24,9 +23,9 @@ Syntax
 
 * zero or more keyword/value pairs may be appended
 * keyword = *force* or *torque* or *innerNodes*
-  
+
   .. parsed-literal::
-  
+
        *force* values = M xflag yflag zflag
          M = which rigid body from 1-Nbody (see asterisk form below)
          xflag,yflag,zflag = off/on if component of center-of-mass force is active
@@ -36,13 +35,10 @@ Syntax
        *innerNodes* values = innergroup-ID
          innergroup-ID = ID of the atom group which does not experience a hydrodynamic force from the lattice-Boltzmann fluid
 
-
-
 Examples
 """"""""
 
-
-.. parsed-literal::
+.. code-block:: LAMMPS
 
    fix 1 spheres lb/rigid/pc/sphere
    fix 1 all lb/rigid/pc/sphere force 1 0 0 innerNodes ForceAtoms
@@ -54,16 +50,15 @@ This fix is based on the :doc:`fix rigid <fix_rigid>` command, and was
 created to be used in place of that fix, to integrate the equations of
 motion of spherical rigid bodies when a lattice-Boltzmann fluid is
 present with a user-specified value of the force-coupling constant.
-The fix uses the integration algorithm described in :ref:`Mackay et al. <Mackay>` to update the positions, velocities, and orientations of
+The fix uses the integration algorithm described in :ref:`Mackay et
+al. <Mackay>` to update the positions, velocities, and orientations of
 a set of spherical rigid bodies experiencing velocity dependent
 hydrodynamic forces.  The spherical bodies are assumed to rotate as
 solid, uniform density spheres, with moments of inertia calculated
 using the combined sum of the masses of all the constituent particles
 (which are assumed to be point particles).
 
-
 ----------
-
 
 By default, all of the atoms that this fix acts on experience a
 hydrodynamic force due to the presence of the lattice-Boltzmann fluid.
@@ -81,23 +76,31 @@ is desirable simply to place an atom at the center of each sphere,
 which does not contribute to the hydrodynamic force, and have these
 central atoms interact with one another.
 
-
 ----------
-
 
 Apart from the features described above, this fix is very similar to
 the rigid fix (although it includes fewer optional arguments, and
 assumes the constituent atoms are point particles); see
 :doc:`fix rigid <fix_rigid>` for a complete documentation.
 
-**Restart, fix\_modify, output, run start/stop, minimize info:**
+Restart, fix_modify, output, run start/stop, minimize info
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 No information about the *rigid* and *rigid/nve* fixes are written to
 :doc:`binary restart files <restart>`.
 
+The :doc:`fix_modify <fix_modify>` *virial* option is supported by
+this fix to add the contribution due to the added forces on atoms to
+both the global pressure and per-atom stress of the system via the
+:doc:`compute pressure <compute_pressure>` and :doc:`compute
+stress/atom <compute_stress_atom>` commands.  The former can be
+accessed by :doc:`thermodynamic output <thermo_style>`.  The default
+setting for this fix is :doc:`fix_modify virial yes <fix_modify>`.
+
 Similar to the :doc:`fix rigid <fix_rigid>` command: The rigid fix
-computes a global scalar which can be accessed by various :doc:`output commands <Howto_output>`.  The scalar value calculated by these
-fixes is "intensive".  The scalar is the current temperature of the
+computes a global scalar which can be accessed by various :doc:`output
+commands <Howto_output>`.  The scalar value calculated by these fixes
+is "intensive".  The scalar is the current temperature of the
 collection of rigid bodies.  This is averaged over all rigid bodies
 and their translational and rotational degrees of freedom.  The
 translational energy of a rigid body is 1/2 m v\^2, where m = total
@@ -136,9 +139,9 @@ of the :doc:`run <run>` command.  These fixes are not invoked during
 Restrictions
 """"""""""""
 
-
 This fix is part of the USER-LB package.  It is only enabled if LAMMPS
-was built with that package.  See the :doc:`Build package <Build_package>` doc page for more info.
+was built with that package.  See the :doc:`Build package
+<Build_package>` doc page for more info.
 
 Can only be used if a lattice-Boltzmann fluid has been created via the
 :doc:`fix lb/fluid <fix_lb_fluid>` command, and must come after this
@@ -157,17 +160,8 @@ Default
 
 The defaults are force \* on on on, and torque \* on on on.
 
-
 ----------
-
 
 .. _Mackay:
 
-
-
 **(Mackay et al.)** Mackay, F. E., Ollila, S.T.T., and Denniston, C., Hydrodynamic Forces Implemented into LAMMPS through a lattice-Boltzmann fluid, Computer Physics Communications 184 (2013) 2021-2031.
-
-
-.. _lws: http://lammps.sandia.gov
-.. _ld: Manual.html
-.. _lc: Commands_all.html
